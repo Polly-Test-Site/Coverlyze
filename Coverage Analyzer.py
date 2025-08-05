@@ -247,6 +247,8 @@ if uploaded_file and "extracted_text" not in st.session_state:
             extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
         st.session_state.extracted_text = extracted_text
 
+
+# ------------------ Auto-generate Quote After Upload ------------------
 if uploaded_file and "auto_quote_done" not in st.session_state:
     with st.spinner("Generating your personalized quote options..."):
         try:
@@ -273,6 +275,36 @@ if uploaded_file and "auto_quote_done" not in st.session_state:
             }
 
             messages = [system_message, first_prompt]
+
+            # Call OpenAI
+            response = client.chat.completions.create(
+                model="gpt-4.1",
+                messages=messages,
+                max_tokens=30000,
+                timeout=30
+            )
+
+            if response.choices and response.choices[0].message:
+                auto_quote_reply = response.choices[0].message.content.strip()
+                st.session_state.chat_history.append(("assistant", auto_quote_reply))
+                st.session_state.dec_summary = auto_quote_reply
+                st.session_state.summary_generated = True
+                st.session_state.auto_quote_done = True
+
+        except Exception as e:
+            st.session_state.chat_history.append(("assistant", f"⚠️ Auto-quote error: {e}"))
+
+# ------------------ Show upload status ------------------
+if uploaded_file:
+    st.markdown(
+        "<div style='text-align:center; color:#1F2D58; font-size:0.95rem; margin-top:5px;'>✅ Dec Page uploaded</div>",
+        unsafe_allow_html=True
+    )
+elif "extracted_text" not in st.session_state:
+    st.markdown(
+        "<div style='text-align:center; color:#94A3B8; font-style:italic; margin-top:10px;'>No Dec Page uploaded</div>",
+        unsafe_allow_html=True
+    )
 
 # Hide filename and just show status
 if uploaded_file:
@@ -427,6 +459,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
