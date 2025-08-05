@@ -303,9 +303,8 @@ if user_prompt:
                         "Communication Guidelines:\n"
                         "- Keep messages short, friendly, and conversational, similar to text messaging—not formal reports.\n"
                         "- Provide information in small, easy-to-read chunks.\n"
-                        "- Ask just one natural follow-up question per message. Wait for the client's reply before moving on.\n"
-                        "- Present insurance quotes or coverage options in simple, side-by-side comparison tables automatically. "
-                        "Do NOT ask if the client wants a table—always include one by default, along with a brief summary explaining key differences if helpful.\n"
+                        "- Always ask only one follow-up question at a time. Make sure your message flows like a natural, friendly conversation. Avoid listing or rapid-firing multiple questions in one turn—keep it relaxed and focused.\n"
+                        "- Present insurance quotes or coverage options in simple, side-by-side comparison tables automatically. Do NOT ask if the client wants a table—always include one by default, along with a brief summary explaining key differences if helpful.\n"
                         "- Offer detailed explanations only when specifically requested by the client.\n"
                         "- Use HTML formatting for readability if supported: <h4> headings, <ul><li> bullets for quick points.\n\n"
 
@@ -369,5 +368,6 @@ if user_prompt:
         except Exception as e:
 
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
