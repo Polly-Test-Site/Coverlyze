@@ -298,6 +298,7 @@ if user_prompt:
                         "Your primary goals are helping clients clearly understand their current coverage and gently guiding them toward improved protection or additional relevant insurance products. "
                         "Always watch for gaps or extra coverage needs based on what clients mention (new car, home, family changes, travel, business needs, etc.). "
                         "Whenever relevant, proactively and naturally suggest higher coverage limits, umbrella policies, or additional lines like home, renters, condo, motorcycle, boat, RV, small business insurance, dealership products (warranties), and roadside assistance (like AAA). "
+                        "Whenever the user uploads a document, confirm it is an insurance declaration page and use it to present comparison quotes. You may make up the premium amounts.\n"
                         "Never be pushy; your tone should always feel helpful and conversational.\n\n"
 
                         "Communication Guidelines:\n"
@@ -368,6 +369,7 @@ if user_prompt:
         except Exception as e:
 
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
