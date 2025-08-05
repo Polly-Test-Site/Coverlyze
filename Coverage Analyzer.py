@@ -6,6 +6,20 @@ import json
 import random
 from datetime import datetime
 
+# ------------------ Intent Detection ------------------
+def detect_intent(user_message):
+    intents = {
+        "umbrella": ["umbrella", "extra liability", "million coverage"],
+        "liability": ["liability", "bodily injury", "property damage"],
+        "deductible": ["deductible", "collision deductible", "comprehensive deductible"],
+        "coverage_comparison": ["compare", "options", "quote", "pricing", "rate", "premium"],
+        "general": []
+    }
+    for intent, keywords in intents.items():
+        if any(word in user_message.lower() for word in keywords):
+            return intent
+    return "general"
+
 # ------------------ Function: Extract Data from Dec Page ------------------
 
 def pinned_download_button(json_data, filename="dec_page_extracted.json"):
@@ -276,9 +290,27 @@ user_prompt = st.chat_input("Ask your insurance question...")
 if "extracted_json" in st.session_state:
     pinned_download_button(st.session_state.extracted_json)
 
-
 if user_prompt:
     st.session_state.chat_history.append(("user", user_prompt))
+    
+    # Detect intent (if not a vague response)
+    detected_intent = detect_intent(user_prompt)
+    if user_prompt.lower() not in ["sure", "ok", "yes", "yep"]:
+        st.session_state.intent = detected_intent
+
+    # If response is vague, use last known intent to clarify the prompt
+    if user_prompt.lower() in ["sure", "ok", "yes", "yep"]:
+        intent = st.session_state.get("intent", "general")
+        if intent == "umbrella":
+            user_prompt = "Please provide a realistic fake umbrella policy quote with premium amounts based on my current coverage."
+        elif intent == "liability":
+            user_prompt = "Please show higher and lower liability limit options with estimated premiums."
+        elif intent == "deductible":
+            user_prompt = "Please show how changing my deductible would affect my premium in a comparison table."
+        elif intent == "coverage_comparison":
+            user_prompt = "Please create a table comparing my current coverage to at least two alternative quote options with estimated premiums."
+        else:
+            user_prompt = "Please suggest additional coverage improvements with estimated premium changes."
 
     # ✅ Dynamically update JSON if prompt suggests changes
     if "extracted_json" in st.session_state:
@@ -369,4 +401,5 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
