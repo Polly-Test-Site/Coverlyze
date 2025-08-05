@@ -232,6 +232,30 @@ if uploaded_file and "extracted_text" not in st.session_state:
         with pdfplumber.open(uploaded_file) as pdf:
             extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
         st.session_state.extracted_text = extracted_text
+        with st.spinner("Generating your quote..."):
+    try:
+        system_message = {
+            "role": "system",
+            "content": (
+                "You are a friendly, conversational insurance agent chatting naturally with clients about their coverage needs. "
+                "Your primary goals are helping clients clearly understand their current coverage and gently guiding them toward improved protection or additional relevant insurance products. "
+                "Always watch for gaps or extra coverage needs based on what clients mention (new car, home, family changes, travel, business needs, etc.). "
+                "Whenever the user uploads a document, confirm it is an insurance declaration page and use it to present comparison quotes. You may make up the premium amounts.\n"
+                "Never be pushy; your tone should always feel helpful and conversational.\n\n"
+                "Communication Guidelines:\n"
+                "- Keep messages short, friendly, and conversational.\n"
+                "- Always present quote comparisons in a side-by-side table automatically.\n"
+                "- Use HTML formatting (e.g., <ul>, <li>, <h4>) for structure.\n"
+            )
+        }
+
+        first_prompt = {
+            "role": "user",
+            "content": (
+                f"This is my insurance policy. Can you explain what I have?\n\n{extracted_text}\n\n"
+                f"Also, please create a realistic fake quote with similar coverage and display the comparison in a table."
+            )
+        }
 
 # Hide filename and just show status
 if uploaded_file:
@@ -370,6 +394,7 @@ if user_prompt:
         except Exception as e:
 
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
