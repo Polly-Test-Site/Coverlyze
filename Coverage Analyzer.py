@@ -246,7 +246,50 @@ if uploaded_file and "extracted_text" not in st.session_state:
         with pdfplumber.open(uploaded_file) as pdf:
             extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
         st.session_state.extracted_text = extracted_text
+# ------------------ Auto-generate quote after upload ------------------
+if uploaded_file and "auto_quote_done" not in st.session_state:
+    with st.spinner("Generating your personalized quote options..."):
+        try:
+            system_message = {
+                "role": "system",
+                "content": (
+                    "You are a friendly, conversational insurance agent. "
+                    "When a declaration page is uploaded, analyze it and create a realistic but made-up comparison quote table. "
+                    "Always include:\n"
+                    "- A brief explanation of current coverage\n"
+                    "- At least 3 alternative coverage options (e.g., higher liability, lower deductible, bundled discounts) "
+                    "with estimated premiums.\n"
+                    "- Present results in a clear side-by-side table with a short summary below.\n"
+                    "Never be pushy—keep the tone helpful and conversational."
+                )
+            }
 
+            first_prompt = {
+                "role": "user",
+                "content": (
+                    f"This is my insurance policy. Explain what I have and create 3 alternative quote options "
+                    f"with realistic made-up premium amounts. Show the results in a side-by-side table.\n\n{st.session_state.extracted_text}"
+                )
+            }
+
+messages = [system_message, first_prompt]
+
+            response = client.chat.completions.create(
+                model="gpt-4.1",
+                messages=messages,
+                max_tokens=30000,
+                timeout=30
+            )
+
+            if response.choices and response.choices[0].message:
+                auto_quote_reply = response.choices[0].message.content.strip()
+                st.session_state.chat_history.append(("assistant", auto_quote_reply))
+                st.session_state.dec_summary = auto_quote_reply
+                st.session_state.summary_generated = True
+                st.session_state.auto_quote_done = True
+
+        except Exception as e:
+            st.session_state.chat_history.append(("assistant", f"⚠️ Auto-quote error: {e}"))
 
 # Hide filename and just show status
 if uploaded_file:
@@ -401,5 +444,6 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
