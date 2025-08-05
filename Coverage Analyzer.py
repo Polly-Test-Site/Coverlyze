@@ -246,7 +246,7 @@ if uploaded_file and "extracted_text" not in st.session_state:
         with pdfplumber.open(uploaded_file) as pdf:
             extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
         st.session_state.extracted_text = extracted_text
-# ------------------ Auto-generate quote after upload ------------------
+
 if uploaded_file and "auto_quote_done" not in st.session_state:
     with st.spinner("Generating your personalized quote options..."):
         try:
@@ -272,24 +272,7 @@ if uploaded_file and "auto_quote_done" not in st.session_state:
                 )
             }
 
-messages = [system_message, first_prompt]
-
-            response = client.chat.completions.create(
-                model="gpt-4.1",
-                messages=messages,
-                max_tokens=30000,
-                timeout=30
-            )
-
-            if response.choices and response.choices[0].message:
-                auto_quote_reply = response.choices[0].message.content.strip()
-                st.session_state.chat_history.append(("assistant", auto_quote_reply))
-                st.session_state.dec_summary = auto_quote_reply
-                st.session_state.summary_generated = True
-                st.session_state.auto_quote_done = True
-
-        except Exception as e:
-            st.session_state.chat_history.append(("assistant", f"⚠️ Auto-quote error: {e}"))
+            messages = [system_message, first_prompt]
 
 # Hide filename and just show status
 if uploaded_file:
