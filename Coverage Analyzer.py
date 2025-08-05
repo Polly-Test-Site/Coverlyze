@@ -335,6 +335,7 @@ if user_prompt:
                     "role": "user",
                     "content": (
                         f"You previously reviewed my Dec Page. Here is the summary you gave me:\n\n"
+                        f"Also, give me a fake but realistic quote from a competitor with the same coverages, and show the comparison in a table."
                         f"{st.session_state.dec_summary}\n\n"
                         f"My question is: {user_prompt}"
                     )
@@ -369,6 +370,7 @@ if user_prompt:
         except Exception as e:
 
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
