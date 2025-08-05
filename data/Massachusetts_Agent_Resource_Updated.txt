@@ -1,0 +1,100 @@
+GLOSSARY:
+- LCDW: Loss Collision Deductible Waiver
+
+
+Massachusetts Insurance Agent Reference Guide
+Published: 7/1/2025
+
+COVERAGE STRUCTURE:
+- Coverages are divided into 12 parts:
+  • Parts 1–4: Compulsory (required)
+  • Parts 5–12: Optional
+  • Parts 3, 5, and 12 should match.
+
+GLASS COVERAGE:
+- $0 glass deductible is standard.
+- $100 deductible option offers discount but removes full glass coverage.
+
+STATE MINIMUM LIMITS:
+- $25,000 / $50,000 / $30,000
+- Part 1 is required on all policies.
+- Part 5 overrides Part 1.
+
+AGENCY STANDARD:
+- Include Part 5 to increase liability and match Parts 3 & 12.
+- Add $5K Medical Payments.
+- Always include Waiver of Deductible.
+
+PART BREAKDOWN:
+1. Bodily Injury to Others – Required. Only covers accidents in MA on public roads, excludes guest occupants.
+2. PIP – Static $8K.
+3. Uninsured Auto Bodily Injury.
+4. Property Damage Liability.
+5. Optional Bodily Injury to Others – Includes guest occupants and out-of-state coverage.
+6. Medical Payments.
+7. Collision.
+8. Limited Collision – Not recommended (only covers if <50% at fault).
+9. Comprehensive.
+10. Substitute Transportation (Rental).
+11. Towing & Labor.
+12. Underinsured Auto Bodily Injury.
+
+OTHER COMMON COVERAGES:
+- Waiver of Deductible: Waives collision deductible if not at fault.
+- Glass Deductible: Avoid offering deductible, customers expect $0 glass.
+
+HOUSEHOLD MEMBERS:
+- All must be listed: Rated, Deferred (insured elsewhere), or Excluded (signed form required).
+
+SDIP (Safe Driver Insurance Plan):
+- Point system affects rate:
+  • Major Violation = 5 pts
+  • Minor Violation = 2 pts
+  • Major AFA = 4 pts
+  • Minor AFA = 3 pts
+  • SDIP 98/99 = Best, 00 = Neutral, 01+ = Surcharged
+- MA does not surcharge for Not At Fault accidents.
+
+DATE FIRST LICENSED:
+- Enter U.S. license date.
+- MA RMV only shows MA license date.
+
+RESHOP & CANCELLATION:
+- Reshop near renewal to avoid short-rate penalty (up to 5.5%).
+- Do not promise refund of unearned premium.
+
+RMV TOOLS:
+- Concord RMV Inquiry (by license or VIN).
+- Polly license lookup (last name + DOB).
+- Workarounds for incorrectly pulled prior registrant info.
+
+PLATE & REGISTRATION:
+- Unregistered vehicle: use “NOREG” as plate# and PAN as type. Color: Red.
+
+BINDING RESTRICTIONS:
+- SDIP ≥4 not eligible for preferred carriers.
+- OOS licenses require UW review unless Travelers or Progressive.
+
+2A FORM INFO:
+- Used to cancel customer’s prior auto policy.
+- Include prior carrier, policy #, vehicle VINs, cancellation date.
+
+E-STAMP COMPANIES:
+- Full list of carriers and codes provided.
+
+2A DELIVERY CONTACTS:
+- Detailed fax/email list for major carriers (e.g., Geico, Plymouth Rock, Safeco, etc.).
+
+CANCELLATION REQUIREMENTS:
+- Need 2A or RMV plate return receipt.
+- No signed LPRs required.
+
+RTA STAMPING:
+- MA Dealers: Upload to Polly.
+- Non-MA: Agents complete and fax if needed.
+- Fax: 917-695-2696
+
+STAMP OPTIONS FOR RENEWALS:
+- Carrier service center can send stamped copy.
+- Create new RTA with Renew Registration checked.
+- Courtesy stamp from nearby agency (if available).
