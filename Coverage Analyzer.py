@@ -269,34 +269,12 @@ uploaded_file = st.file_uploader(" ", type=["pdf"])
 # Only extract once
 # ------------------ Extract Data and Auto-generate Quote ------------------
 if uploaded_file and "extracted_text" not in st.session_state:
-    with st.spinner("Extracting Dec Page data and generating quotes..."):
+    with st.spinner("Extracting Dec Page data..."):
         extracted_data = extract_dec_page_data(uploaded_file)
         st.session_state.extracted_json = json.dumps(extracted_data, indent=4)
-
         with pdfplumber.open(uploaded_file) as pdf:
             extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
         st.session_state.extracted_text = extracted_text
-
-        # Generate fake quotes
-        st.session_state.fake_quotes = generate_fake_quotes(extracted_data)
-
-        # Build initial assistant message
-        quote_table = "\n".join([f"- **{carrier}:** ${price}" for carrier, price in st.session_state.fake_quotes.items()])
-
-        auto_message = (
-            f"✅ I've reviewed your uploaded Dec Page and here's a quick overview of your policy:\n\n"
-            f"**Policy Number:** {extracted_data['policy_info'].get('policy_number','N/A')}\n"
-            f"**Term:** {extracted_data['policy_info'].get('start_date','?')} to {extracted_data['policy_info'].get('end_date','?')}\n"
-            f"**Current Premium:** ${extracted_data['policy_info'].get('full_term_premium','?')}\n\n"
-            f"### 💰 Estimated Quotes from Other Carriers:\n"
-            f"{quote_table}\n\n"
-            "Would you like me to compare your current coverage with these options?"
-        )
-
-        st.session_state.chat_history.append(("assistant", auto_message))
-        st.session_state.summary_generated = True
-        st.session_state.dec_summary = auto_message
-        st.rerun()
 
 
 # ------------------ Show upload status ------------------
