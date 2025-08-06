@@ -290,13 +290,22 @@ uploaded_file = st.file_uploader(" ", type=["pdf"])
 # Only extract once
 # ------------------ Extract Data and Auto-generate Quote ------------------
 if uploaded_file and "extracted_text" not in st.session_state:
-    with st.spinner("Extracting Dec Page data and asking ChatGPT..."):
+    with st.spinner("Extracting Dec Page data and reviewing coverage..."):
         extracted_data = extract_dec_page_data(uploaded_file)
         st.session_state.extracted_json = json.dumps(extracted_data, indent=4)
 
         with pdfplumber.open(uploaded_file) as pdf:
             extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
         st.session_state.extracted_text = extracted_text
+
+        # ✅ Generate fake quotes from top carriers
+        fake_quotes = generate_fake_quotes(extracted_data)
+
+        # ✅ Build a simple Markdown table for display
+        quote_table = "| Carrier      | Estimated Premium ($) |\n"
+        quote_table += "|--------------|----------------------|\n"
+        for carrier, price in fake_quotes.items():
+            quote_table += f"| {carrier} | {price:,.2f} |\n"
 
         # ✅ Automatically send first question to ChatGPT
         try:
@@ -315,15 +324,27 @@ if uploaded_file and "extracted_text" not in st.session_state:
                 model="gpt-4.1",
                 messages=messages,
                 max_tokens=30000,
-                 timeout=30
+                timeout=30
             )           
         
             if response.choices and response.choices[0].message:
                 auto_reply = response.choices[0].message.content.strip()
+            
+                # ✅ Replace unwanted opening
+                auto_reply = re.sub(
+                    r"^(Absolutely.*?now:)", 
+                    "Hello, here is a breakdown of your policy and some current carrier options to review:",
+                    auto_reply,
+                    flags=re.IGNORECASE | re.DOTALL
+                )
+
+                # ✅ Append table of quotes
+                auto_reply += f"\n\n### Estimated Premiums from Top Carriers\n{quote_table}"
+            
                 st.session_state.chat_history.append(("assistant", auto_reply))
                 st.session_state.summary_generated = True
                 st.session_state.dec_summary = auto_reply
-        
+                    
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"⚠️ Error auto-generating summary: {e}"))
 
@@ -464,6 +485,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
