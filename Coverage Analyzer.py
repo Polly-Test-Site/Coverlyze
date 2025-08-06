@@ -271,7 +271,7 @@ if uploaded_file and "extracted_text" not in st.session_state:
 
     # ✅ Add 10-second delay before showing rates
     with st.spinner("Analyzing your policy and fetching comparison rates..."):
-        time.sleep(10)  # wait 10 seconds
+        time.sleep(7.1)  # wait 10 seconds
 
 # ------------------ Always Show Rate Box After Upload ------------------
 if "extracted_data" in st.session_state:
@@ -503,6 +503,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
