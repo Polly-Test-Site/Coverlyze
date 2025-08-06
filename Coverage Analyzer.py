@@ -27,6 +27,26 @@ def clean_spacing(text):
     text = text.replace('\r', '')
     return text.strip()
 
+
+def generate_fake_quotes(extracted_data):
+    """
+    Generate fictitious auto insurance quotes based on the uploaded Dec Page's premium.
+    Rates are randomly adjusted from the current premium for demonstration purposes.
+    """
+    try:
+        base_premium = float(extracted_data["policy_info"].get("full_term_premium", "1200").replace(",", ""))
+    except:
+        base_premium = 1200.00
+
+    carriers = ["Geico", "Progressive", "Travelers", "Safeco", "Nationwide"]
+    fake_quotes = {}
+
+    for carrier in carriers:
+        # Randomly fluctuate premium ±15%
+        quote = round(base_premium * random.uniform(0.85, 1.15), 2)
+        fake_quotes[carrier] = quote
+
+    return fake_quotes
 # ------------------ Function: Extract Data from Dec Page ------------------
 
 def pinned_download_button(json_data, filename="dec_page_extracted.json"):
@@ -247,13 +267,36 @@ uploaded_file = st.file_uploader(" ", type=["pdf"])
 
 # ------------------ Extract Data and Auto-generate Quote ------------------
 # Only extract once
+# ------------------ Extract Data and Auto-generate Quote ------------------
 if uploaded_file and "extracted_text" not in st.session_state:
-    with st.spinner("Extracting Dec Page data..."):
+    with st.spinner("Extracting Dec Page data and generating quotes..."):
         extracted_data = extract_dec_page_data(uploaded_file)
         st.session_state.extracted_json = json.dumps(extracted_data, indent=4)
+
         with pdfplumber.open(uploaded_file) as pdf:
             extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
         st.session_state.extracted_text = extracted_text
+
+        # Generate fake quotes
+        st.session_state.fake_quotes = generate_fake_quotes(extracted_data)
+
+        # Build initial assistant message
+        quote_table = "\n".join([f"- **{carrier}:** ${price}" for carrier, price in st.session_state.fake_quotes.items()])
+
+        auto_message = (
+            f"✅ I've reviewed your uploaded Dec Page and here's a quick overview of your policy:\n\n"
+            f"**Policy Number:** {extracted_data['policy_info'].get('policy_number','N/A')}\n"
+            f"**Term:** {extracted_data['policy_info'].get('start_date','?')} to {extracted_data['policy_info'].get('end_date','?')}\n"
+            f"**Current Premium:** ${extracted_data['policy_info'].get('full_term_premium','?')}\n\n"
+            f"### 💰 Estimated Quotes from Other Carriers:\n"
+            f"{quote_table}\n\n"
+            "Would you like me to compare your current coverage with these options?"
+        )
+
+        st.session_state.chat_history.append(("assistant", auto_message))
+        st.session_state.summary_generated = True
+        st.session_state.dec_summary = auto_message
+        st.rerun()
 
 
 # ------------------ Show upload status ------------------
@@ -415,6 +458,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
