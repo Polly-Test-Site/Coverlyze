@@ -286,9 +286,8 @@ if "chat_history" not in st.session_state:
 # ------------------ File Upload Zone ------------------
 uploaded_file = st.file_uploader(" ", type=["pdf"])
 
-# ------------------ Extract Data and Auto-generate Quote ------------------
-# Only extract once
-# ------------------ Extract Data and Auto-generate Quote ------------------
+
+# ------------------ Extract Data  ------------------
 if uploaded_file and "extracted_text" not in st.session_state:
     with st.spinner("Extracting Dec Page data and reviewing coverage..."):
         extracted_data = extract_dec_page_data(uploaded_file)
@@ -298,16 +297,7 @@ if uploaded_file and "extracted_text" not in st.session_state:
             extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
         st.session_state.extracted_text = extracted_text
 
-        # ✅ Generate fake quotes from top carriers
-        fake_quotes = generate_fake_quotes(extracted_data)
-
-        # ✅ Build a simple Markdown table for display
-        quote_table = "| Carrier      | Estimated Premium ($) |\n"
-        quote_table += "|--------------|----------------------|\n"
-        for carrier, price in fake_quotes.items():
-            quote_table += f"| {carrier} | {price:,.2f} |\n"
-
-        # ✅ Automatically send first question to ChatGPT
+        # ✅ Automatically send first question to ChatGPT (no premium table)
         try:
             messages = [
                 {
@@ -333,13 +323,10 @@ if uploaded_file and "extracted_text" not in st.session_state:
                 # ✅ Replace unwanted opening
                 auto_reply = re.sub(
                     r"^(Absolutely.*?now:)", 
-                    "Hello, here is a breakdown of your policy and some current carrier options to review:",
+                    "Hello, here is a breakdown of your policy to review:",
                     auto_reply,
                     flags=re.IGNORECASE | re.DOTALL
                 )
-
-                # ✅ Append table of quotes
-                auto_reply += f"\n\n### Estimated Premiums from Top Carriers\n{quote_table}"
             
                 st.session_state.chat_history.append(("assistant", auto_reply))
                 st.session_state.summary_generated = True
@@ -347,6 +334,21 @@ if uploaded_file and "extracted_text" not in st.session_state:
                     
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"⚠️ Error auto-generating summary: {e}"))
+
+# ------------------ ✅ Static Carrier Premium Table (Sidebar) ------------------
+if uploaded_file and "fake_quotes" not in st.session_state:
+    st.session_state.fake_quotes = generate_fake_quotes(extracted_data)
+
+with st.sidebar:
+    st.markdown("### 📊 Estimated Premiums from Top Carriers")
+    if "fake_quotes" in st.session_state:
+        quote_data = [
+            {"Carrier": carrier, "Estimated Premium ($)": f"{price:,.2f}"}
+            for carrier, price in st.session_state.fake_quotes.items()
+        ]
+        st.table(quote_data)
+    else:
+        st.markdown("_Upload a Dec Page to view estimated premiums._")
 
 # ------------------ Show upload status ------------------
 if uploaded_file:
@@ -485,6 +487,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
