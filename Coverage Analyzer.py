@@ -314,8 +314,9 @@ if uploaded_file and "extracted_text" not in st.session_state:
             response = client.chat.completions.create(
                 model="gpt-4.1",
                 messages=messages,
-                max_tokens=2000
-            )
+                max_tokens=30000,
+                 timeout=30
+            )           
         
             if response.choices and response.choices[0].message:
                 auto_reply = response.choices[0].message.content.strip()
@@ -463,6 +464,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
