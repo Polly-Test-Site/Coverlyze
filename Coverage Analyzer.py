@@ -26,8 +26,8 @@ def clean_spacing(text):
     # Remove stray carriage returns
     text = text.replace('\r', '')
     return text.strip()
-
-
+    
+# ------------------Premium Amount ------------------
 def generate_fake_quotes(extracted_data):
     """
     Generate fictitious auto insurance quotes based on the uploaded Dec Page's premium.
@@ -47,6 +47,27 @@ def generate_fake_quotes(extracted_data):
         fake_quotes[carrier] = quote
 
     return fake_quotes
+
+# ------------------ Unified System Prompt ------------------
+SYSTEM_PROMPT = (
+    "You are a friendly, conversational insurance agent chatting naturally with clients about their coverage needs. "
+    "Your primary goals are helping clients clearly understand their current coverage and gently guiding them toward improved protection or additional relevant insurance products. "
+    "Always watch for gaps or extra coverage needs based on what clients mention (new car, home, family changes, travel, business needs, etc.). "
+    "Whenever relevant, proactively and naturally suggest higher coverage limits, umbrella policies, or additional lines like home, renters, condo, motorcycle, boat, RV, small business insurance, dealership products (warranties), and roadside assistance (like AAA). "
+    "Whenever the user uploads a document, confirm it is an insurance declaration page and use it to present comparison quotes. You may make up the premium amounts.\n"
+    "Never be pushy; your tone should always feel helpful and conversational.\n\n"
+
+    "Communication Guidelines:\n"
+    "- Keep messages short, friendly, and conversational, similar to text messaging—not formal reports.\n"
+    "- Provide information in small, easy-to-read chunks.\n"
+    "- Always ask only one follow-up question at a time.\n"
+    "- Present insurance quotes or coverage options in simple, side-by-side comparison tables automatically.\n"
+    "- Offer detailed explanations only when specifically requested by the client.\n"
+    "- Use HTML formatting for readability if supported: <h4> headings, <ul><li> bullets for quick points.\n\n"
+
+    "Your main role is to naturally uncover clients' needs, identify coverage gaps, and recommend appropriate insurance solutions in a clear, engaging, conversational manner."
+)
+
 # ------------------ Function: Extract Data from Dec Page ------------------
 
 def pinned_download_button(json_data, filename="dec_page_extracted.json"):
@@ -269,13 +290,41 @@ uploaded_file = st.file_uploader(" ", type=["pdf"])
 # Only extract once
 # ------------------ Extract Data and Auto-generate Quote ------------------
 if uploaded_file and "extracted_text" not in st.session_state:
-    with st.spinner("Extracting Dec Page data..."):
+    with st.spinner("Extracting Dec Page data and asking ChatGPT..."):
         extracted_data = extract_dec_page_data(uploaded_file)
         st.session_state.extracted_json = json.dumps(extracted_data, indent=4)
+
         with pdfplumber.open(uploaded_file) as pdf:
             extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
         st.session_state.extracted_text = extracted_text
 
+        # ✅ Automatically send first question to ChatGPT
+        try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": SYSTEM_PROMPT
+                },
+                {
+                    "role": "user",
+                    "content": f"This is my insurance policy. Can you explain what I have?\n\n{extracted_text}"
+                }
+            ]
+        
+            response = client.chat.completions.create(
+                model="gpt-4.1",
+                messages=messages,
+                max_tokens=2000
+            )
+        
+            if response.choices and response.choices[0].message:
+                auto_reply = response.choices[0].message.content.strip()
+                st.session_state.chat_history.append(("assistant", auto_reply))
+                st.session_state.summary_generated = True
+                st.session_state.dec_summary = auto_reply
+        
+        except Exception as e:
+            st.session_state.chat_history.append(("assistant", f"⚠️ Error auto-generating summary: {e}"))
 
 # ------------------ Show upload status ------------------
 if uploaded_file:
@@ -358,29 +407,7 @@ if user_prompt:
             dec_summary = st.session_state.get("dec_summary", "")
 
             # Build messages for OpenAI
-            messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a friendly, conversational insurance agent chatting naturally with clients about their coverage needs. "
-                        "Your primary goals are helping clients clearly understand their current coverage and gently guiding them toward improved protection or additional relevant insurance products. "
-                        "Always watch for gaps or extra coverage needs based on what clients mention (new car, home, family changes, travel, business needs, etc.). "
-                        "Whenever relevant, proactively and naturally suggest higher coverage limits, umbrella policies, or additional lines like home, renters, condo, motorcycle, boat, RV, small business insurance, dealership products (warranties), and roadside assistance (like AAA). "
-                        "Whenever the user uploads a document, confirm it is an insurance declaration page and use it to present comparison quotes. You may make up the premium amounts.\n"
-                        "Never be pushy; your tone should always feel helpful and conversational.\n\n"
-
-                        "Communication Guidelines:\n"
-                        "Keep messages short, friendly, and conversational, similar to text messaging—not formal reports.\n"
-                        "Provide information in small, easy-to-read chunks.\n"
-                        "Always ask only one follow-up question at a time. Make sure your message flows like a natural, friendly conversation. Avoid listing or rapid-firing multiple questions in one turn—keep it relaxed and focused.\n"
-                        "Present insurance quotes or coverage options in simple, side-by-side comparison tables automatically. Do NOT ask if the client wants a table—always include one by default, along with a brief summary explaining key differences if helpful.\n"
-                        "Offer detailed explanations only when specifically requested by the client.\n"
-                        "Use HTML formatting for readability if supported: <h4> headings, <ul><li> bullets for quick points.\n\n"
-
-                        "Your main role is to naturally uncover clients' needs, identify coverage gaps, and recommend appropriate insurance solutions in a clear, engaging, conversational manner."
-                    )
-                }
-            ]
+            messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
             # Initialize session state variables if they don't exist
             if "summary_generated" not in st.session_state:
@@ -436,6 +463,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
