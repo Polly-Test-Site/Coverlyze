@@ -6,68 +6,6 @@ import json
 import random
 from datetime import datetime
 
-# ------------------ Intent Detection ------------------
-def detect_intent(user_message):
-    intents = {
-        "umbrella": ["umbrella", "extra liability", "million coverage"],
-        "liability": ["liability", "bodily injury", "property damage"],
-        "deductible": ["deductible", "collision deductible", "comprehensive deductible"],
-        "coverage_comparison": ["compare", "options", "quote", "pricing", "rate", "premium"],
-        "general": []
-    }
-    for intent, keywords in intents.items():
-        if any(word in user_message.lower() for word in keywords):
-            return intent
-    return "general"
-
-def clean_spacing(text):
-    # Remove multiple consecutive blank lines
-    text = re.sub(r'\n\s*\n+', '\n', text)
-    # Remove stray carriage returns
-    text = text.replace('\r', '')
-    return text.strip()
-    
-# ------------------Premium Amount ------------------
-def generate_fake_quotes(extracted_data):
-    """
-    Generate fictitious auto insurance quotes based on the uploaded Dec Page's premium.
-    Rates are randomly adjusted from the current premium for demonstration purposes.
-    """
-    try:
-        base_premium = float(extracted_data["policy_info"].get("full_term_premium", "1200").replace(",", ""))
-    except:
-        base_premium = 1200.00
-
-    carriers = ["Geico", "Progressive", "Travelers", "Safeco", "Nationwide"]
-    fake_quotes = {}
-
-    for carrier in carriers:
-        # Randomly fluctuate premium ±15%
-        quote = round(base_premium * random.uniform(0.85, 1.15), 2)
-        fake_quotes[carrier] = quote
-
-    return fake_quotes
-
-# ------------------ Unified System Prompt ------------------
-SYSTEM_PROMPT = (
-    "You are a friendly, conversational insurance agent chatting naturally with clients about their coverage needs. "
-    "Your primary goals are helping clients clearly understand their current coverage and gently guiding them toward improved protection or additional relevant insurance products. "
-    "Always watch for gaps or extra coverage needs based on what clients mention (new car, home, family changes, travel, business needs, etc.). "
-    "Whenever relevant, proactively and naturally suggest higher coverage limits, umbrella policies, or additional lines like home, renters, condo, motorcycle, boat, RV, small business insurance, dealership products (warranties), and roadside assistance (like AAA). "
-    "Whenever the user uploads a document, confirm it is an insurance declaration page and use it to present comparison quotes. You may make up the premium amounts.\n"
-    "Never be pushy; your tone should always feel helpful and conversational.\n\n"
-
-    "Communication Guidelines:\n"
-    "- Keep messages short, friendly, and conversational, similar to text messaging—not formal reports.\n"
-    "- Provide information in small, easy-to-read chunks.\n"
-    "- Always ask only one follow-up question at a time.\n"
-    "- Present insurance quotes or coverage options in simple, side-by-side comparison tables automatically.\n"
-    "- Offer detailed explanations only when specifically requested by the client.\n"
-    "- Use HTML formatting for readability if supported: <h4> headings, <ul><li> bullets for quick points.\n\n"
-
-    "Your main role is to naturally uncover clients' needs, identify coverage gaps, and recommend appropriate insurance solutions in a clear, engaging, conversational manner."
-)
-
 # ------------------ Function: Extract Data from Dec Page ------------------
 
 def pinned_download_button(json_data, filename="dec_page_extracted.json"):
@@ -286,60 +224,16 @@ if "chat_history" not in st.session_state:
 # ------------------ File Upload Zone ------------------
 uploaded_file = st.file_uploader(" ", type=["pdf"])
 
-
-# ------------------ Extract Data  ------------------
+# Only extract once
 if uploaded_file and "extracted_text" not in st.session_state:
-    with st.spinner("Extracting Dec Page data and reviewing coverage..."):
+    with st.spinner("Extracting Dec Page data..."):
         extracted_data = extract_dec_page_data(uploaded_file)
         st.session_state.extracted_json = json.dumps(extracted_data, indent=4)
-
         with pdfplumber.open(uploaded_file) as pdf:
             extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
         st.session_state.extracted_text = extracted_text
 
-        # ✅ Automatically send first question to ChatGPT (no premium table)
-        try:
-            messages = [
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT
-                },
-                {
-                    "role": "user",
-                    "content": f"This is my insurance policy. Can you explain what I have?\n\n{extracted_text}"
-                }
-            ]
-        
-            response = client.chat.completions.create(
-                model="gpt-4.1",
-                messages=messages,
-                max_tokens=30000
-            )
-        
-            if response.choices and response.choices[0].message:
-                auto_reply = response.choices[0].message.content.strip()
-                st.session_state.chat_history.append(("assistant", auto_reply))
-                st.session_state.summary_generated = True
-                st.session_state.dec_summary = auto_reply
-        
-        except Exception as e:
-            st.session_state.chat_history.append(("assistant", f"⚠️ Error auto-generating summary: {e}"))
-            # ------------------ ✅ Static Carrier Premium Table (Sidebar) ------------------
-if uploaded_file and "fake_quotes" not in st.session_state:
-    st.session_state.fake_quotes = generate_fake_quotes(extracted_data)
-
-with st.sidebar:
-    st.markdown("### 📊 Estimated Premiums from Top Carriers")
-    if "fake_quotes" in st.session_state:
-        quote_data = [
-            {"Carrier": carrier, "Estimated Premium ($)": f"{price:,.2f}"}
-            for carrier, price in st.session_state.fake_quotes.items()
-        ]
-        st.table(quote_data)
-    else:
-        st.markdown("_Upload a Dec Page to view estimated premiums._")
-
-# ------------------ Show upload status ------------------
+# Hide filename and just show status
 if uploaded_file:
     st.markdown(
         "<div style='text-align:center; color:#1F2D58; font-size:0.95rem; margin-top:5px;'>✅ Dec Page uploaded</div>",
@@ -351,6 +245,7 @@ elif "extracted_text" not in st.session_state:
         unsafe_allow_html=True
     )
 
+# ------------------ Display Extracted JSON ------------------
 # ------------------ Initialize Empty JSON if Missing ------------------
 if "extracted_json" not in st.session_state:
     st.session_state.extracted_json = json.dumps({
@@ -366,48 +261,23 @@ if "extracted_json" not in st.session_state:
 for role, msg in st.session_state.chat_history:
     icon = "👤" if role == "user" else "🤖"
     bubble_color = "#E0E8FF" if role == "user" else "#f0f0f0"
-    msg_clean = clean_spacing(msg)
-    
     st.markdown(
         f"""
-        <div class="chat-message" style="
-            background-color:{bubble_color};
-            white-space: pre-line;
-            line-height: 1.5;
-            padding: 0.8rem;
-        ">
-            <strong>{icon} {role.capitalize()}</strong><br><br>
-            {msg_clean}
+        <div class="chat-message" style="background-color:{bubble_color}">
+            <strong>{icon} {role.capitalize()}</strong><br>
+            {clean_markdown(msg)}
         </div>
-        """,
-        unsafe_allow_html=True
+        """, unsafe_allow_html=True
     )
+
 # ------------------ Chat Input + Completion ------------------
 user_prompt = st.chat_input("Ask your insurance question...")
 if "extracted_json" in st.session_state:
     pinned_download_button(st.session_state.extracted_json)
 
+
 if user_prompt:
     st.session_state.chat_history.append(("user", user_prompt))
-    
-    # Detect intent (if not a vague response)
-    detected_intent = detect_intent(user_prompt)
-    if user_prompt.lower() not in ["sure", "ok", "yes", "yep"]:
-        st.session_state.intent = detected_intent
-
-    # If response is vague, use last known intent to clarify the prompt
-    if user_prompt.lower() in ["sure", "ok", "yes", "yep"]:
-        intent = st.session_state.get("intent", "general")
-        if intent == "umbrella":
-            user_prompt = "Please provide a realistic fake umbrella policy quote with premium amounts based on my current coverage."
-        elif intent == "liability":
-            user_prompt = "Please show higher and lower liability limit options with estimated premiums."
-        elif intent == "deductible":
-            user_prompt = "Please show how changing my deductible would affect my premium in a comparison table."
-        elif intent == "coverage_comparison":
-            user_prompt = "Please create a table comparing my current coverage to at least two alternative quote options with estimated premiums."
-        else:
-            user_prompt = "Please suggest additional coverage improvements with estimated premium changes."
 
     # ✅ Dynamically update JSON if prompt suggests changes
     if "extracted_json" in st.session_state:
@@ -420,7 +290,29 @@ if user_prompt:
             dec_summary = st.session_state.get("dec_summary", "")
 
             # Build messages for OpenAI
-            messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a friendly, conversational insurance agent chatting naturally with clients about their coverage needs. "
+                        "Your primary goals are helping clients clearly understand their current coverage and gently guiding them toward improved protection or additional relevant insurance products. "
+                        "Always watch for gaps or extra coverage needs based on what clients mention (new car, home, family changes, travel, business needs, etc.). "
+                        "Whenever relevant, proactively and naturally suggest higher coverage limits, umbrella policies, or additional lines like home, renters, condo, motorcycle, boat, RV, small business insurance, dealership products (warranties), and roadside assistance (like AAA). "
+                        "Never be pushy; your tone should always feel helpful and conversational.\n\n"
+                
+                        "Communication Guidelines:\n"
+                        "- Keep messages short, friendly, and conversational, similar to text messaging—not formal reports.\n"
+                        "- Provide information in small, easy-to-read chunks.\n"
+                        "- Ask just one natural follow-up question per message. Wait for the client's reply before moving on.\n"
+                        "- Present insurance quotes or coverage options in simple, side-by-side comparison tables automatically. "
+                        "Do NOT ask if the client wants a table—always include one by default, along with a brief summary explaining key differences if helpful.\n"
+                        "- Offer detailed explanations only when specifically requested by the client.\n"
+                        "- Use HTML formatting for readability if supported: <h4> headings, <ul><li> bullets for quick points.\n\n"
+                
+                        "Your main role is to naturally uncover clients' needs, identify coverage gaps, and recommend appropriate insurance solutions in a clear, engaging, conversational manner."
+                    )
+                }
+            ]
 
             # Initialize session state variables if they don't exist
             if "summary_generated" not in st.session_state:
@@ -475,20 +367,8 @@ if user_prompt:
             else:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
+
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
