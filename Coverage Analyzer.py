@@ -239,70 +239,71 @@ if "chat_history" not in st.session_state:
 uploaded_file = st.file_uploader(" ", type=["pdf"])
 
 # ------------------ Extract Data and Auto-generate Quote ------------------
-if uploaded_file and ("extracted_text" not in st.session_state or "auto_quote_done" not in st.session_state):
-    with st.spinner("Processing your Dec Page..."):
+# Only extract once
+if uploaded_file and "extracted_text" not in st.session_state:
+    with st.spinner("Extracting Dec Page data..."):
+        extracted_data = extract_dec_page_data(uploaded_file)
+        st.session_state.extracted_json = json.dumps(extracted_data, indent=4)
+        with pdfplumber.open(uploaded_file) as pdf:
+            extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
+        st.session_state.extracted_text = extracted_text
+
+
+# ------------------ Auto-generate Quote After Upload ------------------
+if uploaded_file and "auto_quote_done" not in st.session_state:
+    with st.spinner("Generating your personalized quote options..."):
         try:
-            # 1️⃣ Extract data only if not already done
-            if "extracted_text" not in st.session_state:
-                extracted_data = extract_dec_page_data(uploaded_file)
-                st.session_state.extracted_json = json.dumps(extracted_data, indent=4)
-                with pdfplumber.open(uploaded_file) as pdf:
-                    extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
-                st.session_state.extracted_text = extracted_text
-
-            # 2️⃣ Auto-generate quote only if not already done
-            if "auto_quote_done" not in st.session_state:
-                system_message = {
-                    "role": "system",
-                    "content": (
-                        "You are a friendly, conversational insurance agent helping clients understand and improve their auto insurance coverage. "
-                        "Your tone should feel natural and helpful—not technical or robotic.\n\n"
-
-                        "### Style Guidelines:\n"
-                        "- Greet the client by name if possible (e.g., 'Hi Samuel!').\n"
-                        "- Write in a friendly, human-like style using plain language. Avoid long, technical sentences.\n"
-                        "- Use a few well-placed emojis (🚗, 💵, 💡) to make the message more engaging.\n"
-                        "- Present estimated quotes in a **simple, easy-to-read table** with 3–4 columns max.\n"
-                        "- After the table, write **3–4 quick takeaways** as bullet points that explain the options in plain English (no jargon).\n"
-                        "- Show prices in **bold** and mention approximate monthly differences when relevant.\n"
-                        "- Keep messages concise and readable—avoid repeating the entire table in full sentences.\n\n"
-
-                        "### Behavior Rules:\n"
-                        "- When a declaration page is uploaded, first explain the client's current coverage in plain terms.\n"
-                        "- Then, **automatically generate at least 3 alternative quote options** (e.g., higher liability, lower deductible, bundle discounts) "
-                        "with **realistic, made-up premium amounts**.\n"
-                        "- Present these in the friendly format described above: greeting, quick summary of current coverage, table of options, bullet takeaways, and a casual offer to help further.\n"
-                        "- Never sound pushy—you're here to guide, not sell.\n"
-                    )
-                }
-
-                first_prompt = {
-                    "role": "user",
-                    "content": (
-                        f"This is my insurance policy. Explain what I have and create 3 alternative quote options "
-                        f"with realistic made-up premium amounts. Show the results in a side-by-side table.\n\n{st.session_state.extracted_text}"
-                    )
-                }
-
-                messages = [system_message, first_prompt]
-
-                # Call OpenAI
-                response = client.chat.completions.create(
-                    model="gpt-4.1",
-                    messages=messages,
-                    max_tokens=30000,
-                    timeout=30
+            system_message = {
+                "role": "system",
+                "content": (
+                    "You are a friendly, conversational insurance agent helping clients understand and improve their auto insurance coverage. "
+                    "Your tone should feel natural and helpful—not technical or robotic.\n\n"
+            
+                    "### Style Guidelines:\n"
+                    "- Greet the client by name if possible (e.g., 'Hi Samuel!').\n"
+                    "- Write in a friendly, human-like style using plain language. Avoid long, technical sentences.\n"
+                    "- Use a few well-placed emojis (🚗, 💵, 💡) to make the message more engaging.\n"
+                    "- Present estimated quotes in a **simple, easy-to-read table** with 3–4 columns max.\n"
+                    "- After the table, write **3–4 quick takeaways** as bullet points that explain the options in plain English (no jargon).\n"
+                    "- Show prices in **bold** and mention approximate monthly differences when relevant.\n"
+                    "- Keep messages concise and readable—avoid repeating the entire table in full sentences.\n\n"
+            
+                    "### Behavior Rules:\n"
+                    "- When a declaration page is uploaded, first explain the client's current coverage in plain terms.\n"
+                    "- Then, **automatically generate at least 3 alternative quote options** (e.g., higher liability, lower deductible, bundle discounts) "
+                    "with **realistic, made-up premium amounts**.\n"
+                    "- Present these in the friendly format described above: greeting, quick summary of current coverage, table of options, bullet takeaways, and a casual offer to help further.\n"
+                    "- Never sound pushy—you're here to guide, not sell.\n"
                 )
+            }
 
-                if response.choices and response.choices[0].message:
-                    auto_quote_reply = response.choices[0].message.content.strip()
-                    st.session_state.chat_history.append(("assistant", auto_quote_reply))
-                    st.session_state.dec_summary = auto_quote_reply
-                    st.session_state.summary_generated = True
-                    st.session_state.auto_quote_done = True
+            first_prompt = {
+                "role": "user",
+                "content": (
+                    f"This is my insurance policy. Explain what I have and create 3 alternative quote options "
+                    f"with realistic made-up premium amounts. Show the results in a side-by-side table.\n\n{st.session_state.extracted_text}"
+                )
+            }
+
+            messages = [system_message, first_prompt]
+
+            # Call OpenAI
+            response = client.chat.completions.create(
+                model="gpt-4.1",
+                messages=messages,
+                max_tokens=30000,
+                timeout=30
+            )
+
+            if response.choices and response.choices[0].message:
+                auto_quote_reply = response.choices[0].message.content.strip()
+                st.session_state.chat_history.append(("assistant", auto_quote_reply))
+                st.session_state.dec_summary = auto_quote_reply
+                st.session_state.summary_generated = True
+                st.session_state.auto_quote_done = True
 
         except Exception as e:
-            st.session_state.chat_history.append(("assistant", f"⚠️ Error processing Dec Page: {e}"))
+            st.session_state.chat_history.append(("assistant", f"⚠️ Auto-quote error: {e}"))
 
 # ------------------ Show upload status ------------------
 if uploaded_file:
@@ -456,6 +457,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
