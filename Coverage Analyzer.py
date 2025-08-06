@@ -20,6 +20,13 @@ def detect_intent(user_message):
             return intent
     return "general"
 
+def clean_spacing(text):
+    # Remove multiple consecutive blank lines
+    text = re.sub(r'\n\s*\n+', '\n', text)
+    # Remove stray carriage returns
+    text = text.replace('\r', '')
+    return text.strip()
+
 # ------------------ Function: Extract Data from Dec Page ------------------
 
 def pinned_download_button(json_data, filename="dec_page_extracted.json"):
@@ -352,16 +359,18 @@ if "extracted_json" not in st.session_state:
 for role, msg in st.session_state.chat_history:
     icon = "👤" if role == "user" else "🤖"
     bubble_color = "#E0E8FF" if role == "user" else "#f0f0f0"
+    msg_clean = clean_spacing(msg)
+    
     st.markdown(
         f"""
         <div class="chat-message" style="
             background-color:{bubble_color};
             white-space: pre-line;
-            line-height: 1.4;
+            line-height: 1.5;
             padding: 0.8rem;
         ">
             <strong>{icon} {role.capitalize()}</strong><br><br>
-            {msg}
+            {msg_clean}
         </div>
         """,
         unsafe_allow_html=True
@@ -482,6 +491,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
