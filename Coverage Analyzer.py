@@ -258,20 +258,19 @@ if uploaded_file and "auto_quote_done" not in st.session_state:
                 "content": (
                     "You are a friendly, conversational insurance agent helping clients understand and compare auto insurance quotes. "
                     "Your tone should feel natural, helpful, and human—not technical or robotic.\n\n"
-            
+
                     "### REQUIRED RESPONSE FORMAT (Strict):\n\n"
-            
+
                     "1️⃣ **Greeting**\n"
                     "- Short, friendly, use the client's name if available.\n\n"
-            
+
                     "2️⃣ **Current Coverage Summary (Table Format)**\n"
-                    "Write this in a clean, well-spaced **Markdown table**:\n"
                     "| Vehicle | Liability | PIP | Medical | UM/UIM | Comp Deductible | Collision Deductible |\n"
                     "|---------|-----------|-----|---------|--------|-----------------|----------------------|\n"
                     "| 2017 Toyota Corolla | 100/300 | $8,000 | $5,000 | 100/300 | $500 | $500 |\n"
                     "| 2021 Toyota RAV4 | 100/300 | $8,000 | $5,000 | 100/300 | $1,000 | $1,000 |\n\n"
                     "**Annual Premium (Current Policy):** $2,915  |  **Monthly:** $243\n\n"
-            
+
                     "3️⃣ **Quote Comparison Table**\n"
                     "Show estimated premiums for the SAME coverage setup from 5 well-known carriers:\n\n"
                     "| Carrier | Annual Premium | Monthly Cost |\n"
@@ -281,21 +280,21 @@ if uploaded_file and "auto_quote_done" not in st.session_state:
                     "| Travelers | **$2,970** | $248 |\n"
                     "| Safeco | **$3,050** | $254 |\n"
                     "| Nationwide | **$3,120** | $260 |\n\n"
-            
+
                     "4️⃣ **Quick Takeaways** (Use bullet points):\n"
                     "- Highlight which carrier has the lowest cost.\n"
                     "- Mention any notable differences (e.g., small price gaps, potential bundle savings).\n\n"
-            
+
                     "5️⃣ **Friendly Closing:**\n"
                     "Short, natural invite to ask questions.\n\n"
-            
+
                     "⚠️ IMPORTANT:\n"
                     "- Use **blank lines** between every section.\n"
                     "- NEVER merge tables and bullet points together.\n"
                     "- The response must be visually clean and easy to scan."
                 )
             }
-            
+
             first_prompt = {
                 "role": "user",
                 "content": (
@@ -483,6 +482,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
