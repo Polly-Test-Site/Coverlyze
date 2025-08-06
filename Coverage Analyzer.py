@@ -267,7 +267,8 @@ def generate_fake_rates(base_premium):
     return rates
 
 # Get premium from extracted data
-premium_value = extracted_data.get("policy_info", {}).get("full_term_premium", "1200").replace(",", "")
+premium_value = extracted_data.get("policy_info", {}).get("full_term_premium", "1200")
+premium_value = str(premium_value).replace(",", "") if premium_value else "1200"
 fake_quotes = generate_fake_rates(premium_value)
 
 # ------------------ Display Left-Side Rate Box ------------------
@@ -482,5 +483,6 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
