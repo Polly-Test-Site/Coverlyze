@@ -352,20 +352,20 @@ if "extracted_json" not in st.session_state:
 for role, msg in st.session_state.chat_history:
     icon = "👤" if role == "user" else "🤖"
     bubble_color = "#E0E8FF" if role == "user" else "#f0f0f0"
-        st.markdown(
-            f"""
-            <div class="chat-message" style="
-                background-color:{bubble_color};
-                white-space: pre-line;
-                line-height: 1.4;
-                padding: 0.8rem;
-            ">
-                <strong>{icon} {role.capitalize()}</strong><br><br>
-                {msg}
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    st.markdown(
+        f"""
+        <div class="chat-message" style="
+            background-color:{bubble_color};
+            white-space: pre-line;
+            line-height: 1.4;
+            padding: 0.8rem;
+        ">
+            <strong>{icon} {role.capitalize()}</strong><br><br>
+            {msg}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 # ------------------ Chat Input + Completion ------------------
 user_prompt = st.chat_input("Ask your insurance question...")
 if "extracted_json" in st.session_state:
@@ -482,6 +482,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
