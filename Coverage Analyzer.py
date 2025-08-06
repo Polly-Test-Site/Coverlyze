@@ -259,37 +259,37 @@ if uploaded_file and "auto_quote_done" not in st.session_state:
                     "You are a friendly, conversational insurance agent helping clients understand and improve their auto insurance coverage. "
                     "Your tone should feel natural, helpful, and human—not technical or robotic.\n\n"
             
-                    "### REQUIRED OUTPUT FORMAT:\n"
-                    "Your response MUST follow this structure, with clear spacing and readability:\n\n"
+                    "### REQUIRED RESPONSE FORMAT (Strict):\n\n"
             
-                    "1️⃣ **Greeting:** Greet the client by name if available.\n\n"
+                    "1️⃣ **Greeting**\n"
+                    "- Short, friendly, use the client's name if available.\n\n"
             
-                    "2️⃣ **Current Coverage Summary:**\n"
-                    "- List each vehicle covered.\n"
-                    "- Show liability limits, PIP, medical payments, uninsured motorist, comprehensive & collision deductibles.\n"
-                    "- Show current annual premium and approximate monthly cost.\n\n"
+                    "2️⃣ **Current Coverage Summary (Table Format)**\n"
+                    "Write this in a clean, well-spaced **Markdown table**:\n"
+                    "| Vehicle | Liability | PIP | Medical | UM/UIM | Comp Deductible | Collision Deductible |\n"
+                    "|---------|-----------|-----|---------|--------|-----------------|----------------------|\n"
+                    "| 2017 Toyota Corolla | 100/300 | $8,000 | $5,000 | 100/300 | $500 | $500 |\n"
+                    "| 2021 Toyota RAV4 | 100/300 | $8,000 | $5,000 | 100/300 | $1,000 | $1,000 |\n\n"
+                    "**Annual Premium:** $2,915  |  **Monthly:** $243\n\n"
             
-                    "3️⃣ **Quote Comparison Table:**\n"
-                    "Write as a Markdown table, with each row on a NEW LINE, separated clearly:\n\n"
+                    "3️⃣ **Quote Comparison Table**\n"
                     "| Option | Coverage Changes | Deductibles | Annual Premium |\n"
                     "|--------|-----------------|-------------|----------------|\n"
-                    "| 1. Lower Deductibles 🚗 | Reduce Comp & Collision to $500 on both cars | $500 / $500 | **$3,120** |\n"
-                    "| 2. Higher Liability 💡 | Raise Liability to $250k/$500k | $500 / $1000 | **$3,250** |\n"
-                    "| 3. Bundle Discount 💵 | Add renters for 12% multi-policy discount | Keep current deductibles | **$2,570** |\n\n"
+                    "| 1. Lower Deductibles 🚗 | Match RAV4 deductible to $500 | $500/$500 | **$3,080** |\n"
+                    "| 2. Higher Liability 💡 | Increase to $250k/$500k limits | $500/$1000 | **$3,220** |\n"
+                    "| 3. Bundle Discount 💵 | Add renters policy for 10% savings | Keep current | **$2,625** |\n\n"
             
-                    "4️⃣ **Quick Takeaways:**\n"
-                    "- Use bullet points with clear spacing.\n"
-                    "- Show monthly differences in **bold** (e.g., 'about **$17/month more**').\n"
-                    "- Explain what each option does for protection or savings in plain English.\n\n"
+                    "4️⃣ **Quick Takeaways** (Use bullet points):\n"
+                    "- Clear, simple, 1–2 lines per point.\n"
+                    "- Highlight price differences like **+$14/month**.\n\n"
             
                     "5️⃣ **Friendly Closing:**\n"
-                    "Write 1–2 short, natural sentences inviting the client to ask questions, no pressure.\n\n"
+                    "Short, natural invite to ask questions.\n\n"
             
-                    "### Style Rules:\n"
-                    "- Use **bold** for key prices and coverage terms.\n"
-                    "- Use 1 emoji per section max (🚗, 💡, 💵, 😊).\n"
-                    "- Add blank lines between sections so the message is easy to read.\n"
-                    "- NEVER put the entire response in one long block. Use sections, line breaks, and spacing for clarity.\n"
+                    "⚠️ IMPORTANT:\n"
+                    "- Use **blank lines** between every section.\n"
+                    "- NEVER merge tables and bullet points together.\n"
+                    "- The response must be visually clean and easy to scan."
                 )
             }
 
@@ -474,6 +474,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
