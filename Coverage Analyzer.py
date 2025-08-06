@@ -255,7 +255,73 @@ if uploaded_file and "extracted_text" not in st.session_state:
             extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
         st.session_state.extracted_text = extracted_text
 
+# ------------------ Generate Fake Carrier Rates ------------------
+def generate_fake_rates(base_premium):
+    """Generate fake rates around the extracted premium ±10%."""
+    base = float(base_premium.replace(",", "")) if base_premium else 1200.00
+    carriers = ["Travelers", "Geico", "Progressive", "Safeco", "Nationwide"]
+    rates = {}
+    for carrier in carriers:
+        variation = random.uniform(-0.1, 0.1)  # ±10%
+        rates[carrier] = round(base * (1 + variation), 2)
+    return rates
 
+# Get premium from extracted data
+premium_value = extracted_data.get("policy_info", {}).get("full_term_premium", "1200").replace(",", "")
+fake_quotes = generate_fake_rates(premium_value)
+
+# ------------------ Display Left-Side Rate Box ------------------
+st.markdown(
+    """
+    <style>
+    .rate-box {
+        position: fixed;
+        top: 100px;
+        left: 15px;
+        width: 220px;
+        background-color: #f8f9ff;
+        border: 2px solid #1F2D58;
+        border-radius: 10px;
+        padding: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        font-family: 'Segoe UI', sans-serif;
+        z-index: 999;
+    }
+    .rate-box h4 {
+        margin: 0 0 10px 0;
+        font-size: 1rem;
+        color: #1F2D58;
+        text-align: center;
+    }
+    .rate-box table {
+        width: 100%;
+        font-size: 0.9rem;
+        border-collapse: collapse;
+    }
+    .rate-box td {
+        padding: 4px 0;
+        border-bottom: 1px solid #ddd;
+    }
+    .rate-box td.carrier {
+        font-weight: 600;
+        color: #1F2D58;
+    }
+    </style>
+    """, unsafe_allow_html=True
+)
+
+quote_table = "".join([f"<tr><td class='carrier'>{carrier}</td><td>${rate:,.2f}</td></tr>" for carrier, rate in fake_quotes.items()])
+
+st.markdown(
+    f"""
+    <div class="rate-box">
+        <h4>📊 Quick Rate Comparison</h4>
+        <table>
+            {quote_table}
+        </table>
+    </div>
+    """, unsafe_allow_html=True
+)
 
 # ------------------ Show upload status ------------------
 if uploaded_file:
@@ -416,4 +482,5 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
