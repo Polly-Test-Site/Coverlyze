@@ -5,6 +5,7 @@ import re
 import json
 import random
 from datetime import datetime
+import time
 
 # ------------------ Intent Detection ------------------
 def detect_intent(user_message):
@@ -502,6 +503,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
