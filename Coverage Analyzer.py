@@ -245,9 +245,6 @@ if "chat_history" not in st.session_state:
 # ------------------ File Upload Zone ------------------
 uploaded_file = st.file_uploader(" ", type=["pdf"])
 
-# ------------------ Extract Data and Auto-generate Quote ------------------
-# ------------------ File Upload Zone ------------------
-uploaded_file = st.file_uploader(" ", type=["pdf"])
 
 # ------------------ Generate Fake Carrier Rates Function ------------------
 def generate_fake_rates(base_premium):
@@ -269,22 +266,19 @@ if uploaded_file and "extracted_text" not in st.session_state:
             extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
         st.session_state.extracted_text = extracted_text
 
-    # ✅ Generate Rates AFTER extracted_data is defined
+    # Generate Rates
     premium_value = extracted_data.get("policy_info", {}).get("full_term_premium", "1200")
     premium_value = str(premium_value).replace(",", "") if premium_value else "1200"
     fake_quotes = generate_fake_rates(premium_value)
 
-    # ✅ Display the rate box
-    quote_table = "".join(
-        [f"<tr><td class='carrier'>{carrier}</td><td>${rate:,.2f}</td></tr>" for carrier, rate in fake_quotes.items()]
-    )
+    # Display Rate Box
+    quote_table = "".join([f"<tr><td class='carrier'>{c}</td><td>${r:,.2f}</td></tr>" 
+                           for c, r in fake_quotes.items()])
     st.markdown(
         f"""
         <div class="rate-box">
             <h4>📊 Quick Rate Comparison</h4>
-            <table>
-                {quote_table}
-            </table>
+            <table>{quote_table}</table>
         </div>
         """,
         unsafe_allow_html=True
@@ -329,18 +323,18 @@ st.markdown(
     """, unsafe_allow_html=True
 )
 
-quote_table = "".join([f"<tr><td class='carrier'>{carrier}</td><td>${rate:,.2f}</td></tr>" for carrier, rate in fake_quotes.items()])
+#quote_table = "".join([f"<tr><td class='carrier'>{carrier}</td><td>${rate:,.2f}</td></tr>" for carrier, rate in fake_quotes.items()])
 
-st.markdown(
-    f"""
-    <div class="rate-box">
-        <h4>📊 Quick Rate Comparison</h4>
-        <table>
-            {quote_table}
-        </table>
-    </div>
-    """, unsafe_allow_html=True
-)
+#st.markdown(
+ #   f"""
+  #  <div class="rate-box">
+   #     <h4>📊 Quick Rate Comparison</h4>
+    #    <table>
+     #       {quote_table}
+      #  </table>
+    #</div>
+    #""", unsafe_allow_html=True
+#)
 
 # ------------------ Show upload status ------------------
 if uploaded_file:
@@ -501,6 +495,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
