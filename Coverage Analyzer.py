@@ -256,7 +256,7 @@ if uploaded_file and "auto_quote_done" not in st.session_state:
             system_message = {
                 "role": "system",
                 "content": (
-                    "You are a friendly, conversational insurance agent helping clients understand and improve their auto insurance coverage. "
+                    "You are a friendly, conversational insurance agent helping clients understand and compare auto insurance quotes. "
                     "Your tone should feel natural, helpful, and human—not technical or robotic.\n\n"
             
                     "### REQUIRED RESPONSE FORMAT (Strict):\n\n"
@@ -270,18 +270,21 @@ if uploaded_file and "auto_quote_done" not in st.session_state:
                     "|---------|-----------|-----|---------|--------|-----------------|----------------------|\n"
                     "| 2017 Toyota Corolla | 100/300 | $8,000 | $5,000 | 100/300 | $500 | $500 |\n"
                     "| 2021 Toyota RAV4 | 100/300 | $8,000 | $5,000 | 100/300 | $1,000 | $1,000 |\n\n"
-                    "**Annual Premium:** $2,915  |  **Monthly:** $243\n\n"
+                    "**Annual Premium (Current Policy):** $2,915  |  **Monthly:** $243\n\n"
             
                     "3️⃣ **Quote Comparison Table**\n"
-                    "| Option | Coverage Changes | Deductibles | Annual Premium |\n"
-                    "|--------|-----------------|-------------|----------------|\n"
-                    "| 1. Lower Deductibles 🚗 | Match RAV4 deductible to $500 | $500/$500 | **$3,080** |\n"
-                    "| 2. Higher Liability 💡 | Increase to $250k/$500k limits | $500/$1000 | **$3,220** |\n"
-                    "| 3. Bundle Discount 💵 | Add renters policy for 10% savings | Keep current | **$2,625** |\n\n"
+                    "Show estimated premiums for the SAME coverage setup from 5 well-known carriers:\n\n"
+                    "| Carrier | Annual Premium | Monthly Cost |\n"
+                    "|---------|----------------|--------------|\n"
+                    "| Geico | **$2,850** | $238 |\n"
+                    "| Progressive | **$2,920** | $243 |\n"
+                    "| Travelers | **$2,970** | $248 |\n"
+                    "| Safeco | **$3,050** | $254 |\n"
+                    "| Nationwide | **$3,120** | $260 |\n\n"
             
                     "4️⃣ **Quick Takeaways** (Use bullet points):\n"
-                    "- Clear, simple, 1–2 lines per point.\n"
-                    "- Highlight price differences like **+$14/month**.\n\n"
+                    "- Highlight which carrier has the lowest cost.\n"
+                    "- Mention any notable differences (e.g., small price gaps, potential bundle savings).\n\n"
             
                     "5️⃣ **Friendly Closing:**\n"
                     "Short, natural invite to ask questions.\n\n"
@@ -292,12 +295,13 @@ if uploaded_file and "auto_quote_done" not in st.session_state:
                     "- The response must be visually clean and easy to scan."
                 )
             }
-
+            
             first_prompt = {
                 "role": "user",
                 "content": (
                     f"This is my insurance policy. Explain what I currently have in plain terms "
-                    f"and create 3 alternative quote options with realistic made-up premium amounts. "
+                    f"and create a 5-carrier comparison (Geico, Progressive, Travelers, Safeco, Nationwide) "
+                    f"with realistic made-up premium amounts for the same coverage. "
                     f"Format the response exactly as instructed above.\n\n{st.session_state.extracted_text}"
                 )
             }
@@ -479,6 +483,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
