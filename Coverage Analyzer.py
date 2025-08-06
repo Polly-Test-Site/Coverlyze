@@ -357,6 +357,7 @@ for role, msg in st.session_state.chat_history:
         </div>
         """,
         unsafe_allow_html=True
+    )
 
 # ------------------ Chat Input + Completion ------------------
 user_prompt = st.chat_input("Ask your insurance question...")
@@ -474,6 +475,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
