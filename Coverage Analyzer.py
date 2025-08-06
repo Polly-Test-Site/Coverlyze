@@ -424,7 +424,7 @@ if user_prompt:
             summary_done = st.session_state.get("summary_generated", False)
             dec_summary = st.session_state.get("dec_summary", "")
 
-            # Build messages for OpenAI
+            # ✅ Build messages starting with system prompt
             messages = [
                 {
                     "role": "system",
@@ -455,13 +455,20 @@ if user_prompt:
                 }
             ]
 
+            # ✅ Append entire chat history before the new message
+            for role, msg in st.session_state.chat_history:
+                messages.append({"role": role, "content": msg})
+
+            # ✅ Add the new user prompt
+            messages.append({"role": "user", "content": user_prompt})
+
             # Initialize session state variables if they don't exist
             if "summary_generated" not in st.session_state:
                 st.session_state.summary_generated = False
             if "dec_summary" not in st.session_state:
                 st.session_state.dec_summary = None
 
-            # Determine message content
+            # Determine message content based on context
             if extracted_text and not st.session_state.summary_generated:
                 # First-time upload: send raw Dec Page for explanation
                 messages.append({
@@ -509,6 +516,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
