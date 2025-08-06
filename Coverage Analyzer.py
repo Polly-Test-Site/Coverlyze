@@ -246,16 +246,10 @@ if "chat_history" not in st.session_state:
 uploaded_file = st.file_uploader(" ", type=["pdf"])
 
 # ------------------ Extract Data and Auto-generate Quote ------------------
-# Only extract once
-if uploaded_file and "extracted_text" not in st.session_state:
-    with st.spinner("Extracting Dec Page data..."):
-        extracted_data = extract_dec_page_data(uploaded_file)
-        st.session_state.extracted_json = json.dumps(extracted_data, indent=4)
-        with pdfplumber.open(uploaded_file) as pdf:
-            extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
-        st.session_state.extracted_text = extracted_text
+# ------------------ File Upload Zone ------------------
+uploaded_file = st.file_uploader(" ", type=["pdf"])
 
-# ------------------ Generate Fake Carrier Rates ------------------
+# ------------------ Generate Fake Carrier Rates Function ------------------
 def generate_fake_rates(base_premium):
     """Generate fake rates around the extracted premium ±10%."""
     base = float(base_premium.replace(",", "")) if base_premium else 1200.00
@@ -266,11 +260,35 @@ def generate_fake_rates(base_premium):
         rates[carrier] = round(base * (1 + variation), 2)
     return rates
 
-# Get premium from extracted data
-premium_value = extracted_data.get("policy_info", {}).get("full_term_premium", "1200")
-premium_value = str(premium_value).replace(",", "") if premium_value else "1200"
-fake_quotes = generate_fake_rates(premium_value)
+# ------------------ Extract Data and Auto-generate Quote ------------------
+if uploaded_file and "extracted_text" not in st.session_state:
+    with st.spinner("Extracting Dec Page data..."):
+        extracted_data = extract_dec_page_data(uploaded_file)
+        st.session_state.extracted_json = json.dumps(extracted_data, indent=4)
+        with pdfplumber.open(uploaded_file) as pdf:
+            extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
+        st.session_state.extracted_text = extracted_text
 
+    # ✅ Generate Rates AFTER extracted_data is defined
+    premium_value = extracted_data.get("policy_info", {}).get("full_term_premium", "1200")
+    premium_value = str(premium_value).replace(",", "") if premium_value else "1200"
+    fake_quotes = generate_fake_rates(premium_value)
+
+    # ✅ Display the rate box
+    quote_table = "".join(
+        [f"<tr><td class='carrier'>{carrier}</td><td>${rate:,.2f}</td></tr>" for carrier, rate in fake_quotes.items()]
+    )
+    st.markdown(
+        f"""
+        <div class="rate-box">
+            <h4>📊 Quick Rate Comparison</h4>
+            <table>
+                {quote_table}
+            </table>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 # ------------------ Display Left-Side Rate Box ------------------
 st.markdown(
     """
@@ -483,6 +501,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
