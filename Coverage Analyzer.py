@@ -285,7 +285,7 @@ if "extracted_data" in st.session_state:
     st.markdown(
         f"""
         <div class="rate-box">
-            <h4> Kuve Rate Comparison</h4>
+            <h4> Live Rate Comparison</h4>
             <table>{quote_table}</table>
         </div>
         """,
@@ -503,6 +503,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
