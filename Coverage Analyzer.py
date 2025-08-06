@@ -268,6 +268,10 @@ if uploaded_file and "extracted_text" not in st.session_state:
         st.session_state.extracted_text = extracted_text
         st.session_state.extracted_data = extracted_data
 
+    # ✅ Add 10-second delay before showing rates
+    with st.spinner("Analyzing your policy and fetching comparison rates..."):
+        time.sleep(10)  # wait 10 seconds
+
 # ------------------ Always Show Rate Box After Upload ------------------
 if "extracted_data" in st.session_state:
     premium_value = st.session_state.extracted_data.get("policy_info", {}).get("full_term_premium", "1200")
@@ -280,7 +284,7 @@ if "extracted_data" in st.session_state:
     st.markdown(
         f"""
         <div class="rate-box">
-            <h4>📊 Quick Rate Comparison</h4>
+            <h4> Kuve Rate Comparison</h4>
             <table>{quote_table}</table>
         </div>
         """,
@@ -498,6 +502,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
