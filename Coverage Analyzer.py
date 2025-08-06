@@ -258,6 +258,7 @@ def generate_fake_rates(base_premium):
     return rates
 
 # ------------------ Extract Data and Auto-generate Quote ------------------
+# ------------------ Extract Data Once ------------------
 if uploaded_file and "extracted_text" not in st.session_state:
     with st.spinner("Extracting Dec Page data..."):
         extracted_data = extract_dec_page_data(uploaded_file)
@@ -265,15 +266,17 @@ if uploaded_file and "extracted_text" not in st.session_state:
         with pdfplumber.open(uploaded_file) as pdf:
             extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
         st.session_state.extracted_text = extracted_text
+        st.session_state.extracted_data = extracted_data
 
-    # Generate Rates
-    premium_value = extracted_data.get("policy_info", {}).get("full_term_premium", "1200")
+# ------------------ Always Show Rate Box After Upload ------------------
+if "extracted_data" in st.session_state:
+    premium_value = st.session_state.extracted_data.get("policy_info", {}).get("full_term_premium", "1200")
     premium_value = str(premium_value).replace(",", "") if premium_value else "1200"
     fake_quotes = generate_fake_rates(premium_value)
 
-    # Display Rate Box
-    quote_table = "".join([f"<tr><td class='carrier'>{c}</td><td>${r:,.2f}</td></tr>" 
-                           for c, r in fake_quotes.items()])
+    quote_table = "".join(
+        [f"<tr><td class='carrier'>{c}</td><td>${r:,.2f}</td></tr>" for c, r in fake_quotes.items()]
+    )
     st.markdown(
         f"""
         <div class="rate-box">
@@ -495,6 +498,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
