@@ -316,19 +316,6 @@ elif "extracted_text" not in st.session_state:
         unsafe_allow_html=True
     )
 
-# Hide filename and just show status
-if uploaded_file:
-    st.markdown(
-        "<div style='text-align:center; color:#1F2D58; font-size:0.95rem; margin-top:5px;'>✅ Dec Page uploaded</div>",
-        unsafe_allow_html=True
-    )
-elif "extracted_text" not in st.session_state:
-    st.markdown(
-        "<div style='text-align:center; color:#94A3B8; font-style:italic; margin-top:10px;'>No Dec Page uploaded</div>",
-        unsafe_allow_html=True
-    )
-
-# ------------------ Display Extracted JSON ------------------
 # ------------------ Initialize Empty JSON if Missing ------------------
 if "extracted_json" not in st.session_state:
     st.session_state.extracted_json = json.dumps({
@@ -469,6 +456,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
