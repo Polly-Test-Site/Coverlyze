@@ -298,33 +298,32 @@ if uploaded_file and "extracted_text" not in st.session_state:
         st.session_state.extracted_text = extracted_text
 
         # ✅ Automatically send first question to ChatGPT (no premium table)
-            try:
-                messages = [
-                    {
-                        "role": "system",
-                        "content": SYSTEM_PROMPT
-                    },
-                    {
-                        "role": "user",
-                        "content": f"This is my insurance policy. Can you explain what I have?\n\n{extracted_text}"
-                    }
-                ]
-            
-                response = client.chat.completions.create(
-                    model="gpt-4.1",
-                    messages=messages,
-                    max_tokens=30000,
-                    timeout=30
-                )
-            
-                if response.choices and response.choices[0].message:
-                    auto_reply = response.choices[0].message.content.strip()
-                    st.session_state.chat_history.append(("assistant", auto_reply))
-                    st.session_state.summary_generated = True
-                    st.session_state.dec_summary = auto_reply
-            
-            except Exception as e:
-                st.session_state.chat_history.append(("assistant", f"⚠️ Error auto-generating summary: {e}"))
+        try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": SYSTEM_PROMPT
+                },
+                {
+                    "role": "user",
+                    "content": f"This is my insurance policy. Can you explain what I have?\n\n{extracted_text}"
+                }
+            ]
+        
+            response = client.chat.completions.create(
+                model="gpt-4.1",
+                messages=messages,
+                max_tokens=30000
+            )
+        
+            if response.choices and response.choices[0].message:
+                auto_reply = response.choices[0].message.content.strip()
+                st.session_state.chat_history.append(("assistant", auto_reply))
+                st.session_state.summary_generated = True
+                st.session_state.dec_summary = auto_reply
+        
+        except Exception as e:
+            st.session_state.chat_history.append(("assistant", f"⚠️ Error auto-generating summary: {e}"))
             # ------------------ ✅ Static Carrier Premium Table (Sidebar) ------------------
 if uploaded_file and "fake_quotes" not in st.session_state:
     st.session_state.fake_quotes = generate_fake_quotes(extracted_data)
@@ -477,6 +476,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
