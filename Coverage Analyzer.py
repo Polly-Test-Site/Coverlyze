@@ -36,8 +36,8 @@ def pinned_download_button(json_data, filename="dec_page_extracted.json"):
         /* Only affect the pinned download button */
         .pinned-download > button {
             position: fixed !important;
-            top: 16px !important;
-            right: 16px !important;
+            top: 5px !important;
+            right: 40px !important;
             display: inline-block !important;
             width: auto !important;
             min-width: 170px !important;
@@ -521,6 +521,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
