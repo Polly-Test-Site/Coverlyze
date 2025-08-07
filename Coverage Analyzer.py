@@ -31,30 +31,35 @@ def clean_spacing(text):
 # ------------------ Function: Extract Data from Dec Page ------------------
 
 def pinned_download_button(json_data, filename="dec_page_extracted.json"):
-    # Inject CSS to fix button position and style
     st.markdown("""
         <style>
-        div[data-testid="stDownloadButton"] > button {
-            position: fixed;
-            top: 70px; /* just above the chat input */
-            right: 20px;
+        /* Only affect the pinned download button */
+        .pinned-download > button {
+            position: fixed !important;
+            top: 16px !important;
+            right: 16px !important;
+            display: inline-block !important;
+            width: auto !important;
+            min-width: 170px !important;
             background-color: #F04E30 !important;
-            color: white !important;
-            font-weight: bold;
-            padding: 10px 16px;
-            border-radius: 8px;
-            z-index: 9999;
-            border: none;
+            color: #ffffff !important;
+            font-weight: 600 !important;
+            padding: 10px 14px !important;
+            border-radius: 8px !important;
+            border: none !important;
+            z-index: 10000 !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,.15) !important;
         }
         </style>
     """, unsafe_allow_html=True)
 
     st.download_button(
-        label="⬇️ Download JSON",
+        "⬇️ Download JSON",
         data=json_data,
         file_name=filename,
         mime="application/json",
-        key="fixed_download",
+        key="pinned_download",
+        help="Download extracted data",
     )
 def extract_dec_page_data(pdf_path):
     data = {
@@ -516,6 +521,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
