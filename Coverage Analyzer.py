@@ -40,7 +40,7 @@ def pinned_download_button(json_data, filename="dec_page_extracted.json"):
             display: inline-block !important;
             width: auto !important;
             background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%) !important;
-            color: #ffffff !important;
+            color: #ffffff !important;  /* Force white text always */
             font-weight: 600 !important;
             font-size: 14px !important;
             padding: 10px 16px !important;
@@ -50,8 +50,12 @@ def pinned_download_button(json_data, filename="dec_page_extracted.json"):
             transition: all 0.2s ease-in-out !important;
             z-index: 10000 !important;
         }
+        .pinned-download > button * {
+            color: #ffffff !important; /* Make icon/text inside white too */
+        }
         .pinned-download > button:hover {
             background: linear-gradient(90deg, #43e97b 0%, #38f9d7 100%) !important;
+            color: #ffffff !important;
             transform: translateY(-2px);
             box-shadow: 0 6px 16px rgba(0,0,0,.2) !important;
         }
@@ -67,6 +71,7 @@ def pinned_download_button(json_data, filename="dec_page_extracted.json"):
         key="pinned_download",
     )
     st.markdown('</div>', unsafe_allow_html=True)
+    
 def extract_dec_page_data(pdf_path):
     data = {
         "policy_info": {},
@@ -527,6 +532,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
