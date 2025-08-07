@@ -497,7 +497,7 @@ if user_prompt:
 
             # Run ChatGPT
             response = client.chat.completions.create(
-                model="gpt-5",
+                model="gpt-5-chat-latest",
                 messages=messages,
                 max_tokens=30000,
                 timeout=30
@@ -516,6 +516,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
