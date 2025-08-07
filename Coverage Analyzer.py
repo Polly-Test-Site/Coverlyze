@@ -183,6 +183,35 @@ st.set_page_config(page_title="Polly Coverage Agent", layout="centered")
 # ------------------ CSS Styling ------------------
 st.markdown("""
 <style>
+/* Style the file uploader */
+section[data-testid="stFileUploader"] {
+    background-color: #fff !important;
+    border: 2px dashed #F04E30 !important;
+    border-radius: 12px !important;
+    padding: 1.5rem !important;
+    color: #1F2D58 !important;
+}
+
+/* Style the Browse button itself */
+section[data-testid="stFileUploader"] > div button {
+    background-color: #F04E30 !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    border: none !important;
+    padding: 0.5rem 1rem !important;
+    transition: all 0.2s ease-in-out !important;
+}
+
+/* Hover effect */
+section[data-testid="stFileUploader"] > div button:hover {
+    background-color: #ff6a4d !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
 body, .stApp {
     background-color: #ffffff;
     color: #1F2D58;
@@ -536,6 +565,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
