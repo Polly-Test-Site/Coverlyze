@@ -31,38 +31,7 @@ def clean_spacing(text):
 # ------------------ Function: Extract Data from Dec Page ------------------
 
 def pinned_download_button(json_data, filename="dec_page_extracted.json"):
-    st.markdown("""
-        <style>
-        .pinned-download > button {
-            position: fixed !important;
-            top: 16px !important;
-            right: 16px !important;
-            display: inline-block !important;
-            width: auto !important;
-            background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%) !important;
-            background-color: #F04E30 !important;  /* Polly orange */  
-            font-weight: 600 !important;
-            font-size: 14px !important;
-            padding: 10px 16px !important;
-            border-radius: 8px !important;
-            border: none !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,.15) !important;
-            transition: all 0.2s ease-in-out !important;
-            z-index: 10000 !important;
-        }
-        .pinned-download > button * {
-            color: #ffffff !important; /* Make icon/text inside white too */
-        }
-        .pinned-download > button:hover {
-            background: linear-gradient(90deg, #43e97b 0%, #38f9d7 100%) !important;
-            color: #ffffff !important;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(0,0,0,.2) !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown('<div class="pinned-download">', unsafe_allow_html=True)
+    # render the widget first so the CSS (below) can override it
     st.download_button(
         "⬇️ Download JSON",
         data=json_data,
@@ -70,7 +39,42 @@ def pinned_download_button(json_data, filename="dec_page_extracted.json"):
         mime="application/json",
         key="pinned_download",
     )
-    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown("""
+    <style>
+    /* Pin the specific download widget (by Streamlit test id) */
+    div[data-testid="stDownloadButton"] {
+        position: fixed !important;
+        top: 16px !important;
+        right: 16px !important;
+        z-index: 10000 !important;
+        width: auto !important;
+    }
+    /* Style the actual button inside */
+    div[data-testid="stDownloadButton"] > button {
+        background-color: #F04E30 !important;   /* Polly orange */
+        color: #ffffff !important;               /* white text */
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 10px 16px !important;
+        font-weight: 600 !important;
+        width: auto !important;
+        min-width: 170px !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,.15) !important;
+        transition: all .2s ease-in-out !important;
+    }
+    /* Make sure inner spans/icons are white too */
+    div[data-testid="stDownloadButton"] > button * {
+        color: #ffffff !important;
+    }
+    /* Hover */
+    div[data-testid="stDownloadButton"] > button:hover {
+        background-color: #ff6a4d !important;    /* lighter orange */
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0,0,0,.2) !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
 def extract_dec_page_data(pdf_path):
     data = {
@@ -532,6 +536,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
