@@ -45,7 +45,7 @@ def pinned_download_button(json_data, filename="dec_page_extracted.json"):
     /* Pin the specific download widget (by Streamlit test id) */
     div[data-testid="stDownloadButton"] {
         position: fixed !important;
-        top: 40px !important;
+        top: 70px !important;
         right: 16px !important;
         z-index: 10000 !important;
         width: auto !important;
@@ -536,6 +536,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
