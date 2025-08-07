@@ -40,7 +40,7 @@ def pinned_download_button(json_data, filename="dec_page_extracted.json"):
             display: inline-block !important;
             width: auto !important;
             background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%) !important;
-            color: #ffffff !important;  /* Force white text always */
+            background-color: #F04E30 !important;  /* Polly orange */  
             font-weight: 600 !important;
             font-size: 14px !important;
             padding: 10px 16px !important;
@@ -532,6 +532,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
