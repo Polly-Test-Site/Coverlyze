@@ -195,7 +195,7 @@ section[data-testid="stFileUploader"] {
 /* Style the Browse button itself */
 section[data-testid="stFileUploader"] > div button {
     background-color: #F04E30 !important;
-    color: #fff !important;
+    color: #ffffff !important;
     font-weight: 600 !important;
     border-radius: 8px !important;
     border: none !important;
@@ -203,9 +203,24 @@ section[data-testid="stFileUploader"] > div button {
     transition: all 0.2s ease-in-out !important;
 }
 
+/* Force white text on all button text elements */
+section[data-testid="stFileUploader"] > div button * {
+    color: #ffffff !important;
+}
+
+/* Ensure the button text span is white */
+section[data-testid="stFileUploader"] > div button span {
+    color: #ffffff !important;
+}
+
 /* Hover effect */
 section[data-testid="stFileUploader"] > div button:hover {
     background-color: #ff6a4d !important;
+}
+
+/* Hover state text also white */
+section[data-testid="stFileUploader"] > div button:hover * {
+    color: #ffffff !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -576,6 +591,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
