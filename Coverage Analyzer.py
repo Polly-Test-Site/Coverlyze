@@ -353,7 +353,7 @@ if uploaded_file and "extracted_text" not in st.session_state:
 
     # ✅ Add delay before showing rates
     with st.spinner("Analyzing your policy and fetching comparison rates..."):
-        time.sleep(7.1)
+        time.sleep(2)
     
     # ✅ AUTO-GENERATE SUMMARY AND RECOMMENDATIONS
     with st.spinner("Reviewing your coverage and preparing recommendations..."):
@@ -576,6 +576,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
