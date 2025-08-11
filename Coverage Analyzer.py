@@ -193,7 +193,7 @@ section[data-testid="stFileUploader"] {
 }
 
 /* Style the Browse button itself */
-section[data-testid="stFileUploader"] > div button {
+section[data-testid="stFileUploader"] button {
     background-color: #F04E30 !important;
     color: #ffffff !important;
     font-weight: 600 !important;
@@ -204,22 +204,50 @@ section[data-testid="stFileUploader"] > div button {
 }
 
 /* Force white text on all button text elements */
-section[data-testid="stFileUploader"] > div button * {
+section[data-testid="stFileUploader"] button * {
+    color: #ffffff !important;
+}
+
+/* Target the button text specifically */
+section[data-testid="stFileUploader"] button p {
     color: #ffffff !important;
 }
 
 /* Ensure the button text span is white */
-section[data-testid="stFileUploader"] > div button span {
+section[data-testid="stFileUploader"] button span {
+    color: #ffffff !important;
+}
+
+/* Target button with kind attribute */
+button[kind="secondary"] {
     color: #ffffff !important;
 }
 
 /* Hover effect */
-section[data-testid="stFileUploader"] > div button:hover {
+section[data-testid="stFileUploader"] button:hover {
     background-color: #ff6a4d !important;
 }
 
 /* Hover state text also white */
-section[data-testid="stFileUploader"] > div button:hover * {
+section[data-testid="stFileUploader"] button:hover * {
+    color: #ffffff !important;
+}
+
+/* Additional targeting for the upload button text */
+.stUploadButton button {
+    color: #ffffff !important;
+}
+
+.stUploadButton button * {
+    color: #ffffff !important;
+}
+
+/* Target the specific browse button by data-testid if it exists */
+button[data-testid="stUploadButton"] {
+    color: #ffffff !important;
+}
+
+button[data-testid="stUploadButton"] * {
     color: #ffffff !important;
 }
 </style>
@@ -591,6 +619,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+
 
 
 
