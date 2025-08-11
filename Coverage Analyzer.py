@@ -295,7 +295,6 @@ if "chat_history" not in st.session_state:
 # ------------------ File Upload Zone ------------------
 uploaded_file = st.file_uploader(" ", type=["pdf"])
 
-
 # ------------------ Generate Fake Carrier Rates Function ------------------
 def generate_fake_rates(base_premium):
     """Generate fake rates around the extracted premium ±10%."""
@@ -307,8 +306,42 @@ def generate_fake_rates(base_premium):
         rates[carrier] = round(base * (1 + variation), 2)
     return rates
 
-# ------------------ Extract Data and Auto-generate Quote ------------------
-# ------------------ Extract Data Once ------------------
+# ------------------ Auto-generate Summary Function ------------------
+def generate_auto_summary(extracted_text, extracted_data):
+    """Automatically generate a summary and recommendations when dec page is uploaded."""
+    try:
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a friendly, conversational insurance agent. When reviewing a client's declaration page, "
+                    "provide a brief, easy-to-understand summary of their current coverage and then immediately suggest "
+                    "2-3 specific coverage improvements. Keep it conversational and helpful, not formal. "
+                    "Format your response with clear sections using <h4> tags and bullet points with <ul><li> tags. "
+                    "Always end with one simple, specific question to engage the client."
+                )
+            },
+            {
+                "role": "user",
+                "content": f"Here's my insurance declaration page. Please give me a brief summary of what I have and suggest some coverage improvements:\n\n{extracted_text}"
+            }
+        ]
+        
+        response = client.chat.completions.create(
+            model="gpt-5-chat-latest",
+            messages=messages,
+            max_tokens=1000,
+            timeout=30
+        )
+        
+        if response.choices and response.choices[0].message:
+            return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"I've received your declaration page. Let me review it and provide recommendations. Error: {str(e)}"
+    
+    return "I've received your declaration page. Let me review it and provide recommendations."
+
+# ------------------ Extract Data and Auto-generate Summary ------------------
 if uploaded_file and "extracted_text" not in st.session_state:
     with st.spinner("Extracting Dec Page data..."):
         extracted_data = extract_dec_page_data(uploaded_file)
@@ -318,9 +351,16 @@ if uploaded_file and "extracted_text" not in st.session_state:
         st.session_state.extracted_text = extracted_text
         st.session_state.extracted_data = extracted_data
 
-    # ✅ Add 10-second delay before showing rates
+    # ✅ Add delay before showing rates
     with st.spinner("Analyzing your policy and fetching comparison rates..."):
-        time.sleep(7.1)  # wait 10 seconds
+        time.sleep(7.1)
+    
+    # ✅ AUTO-GENERATE SUMMARY AND RECOMMENDATIONS
+    with st.spinner("Reviewing your coverage and preparing recommendations..."):
+        auto_summary = generate_auto_summary(extracted_text, extracted_data)
+        st.session_state.chat_history.append(("assistant", auto_summary))
+        st.session_state.dec_summary = auto_summary
+        st.session_state.summary_generated = True
 
 # ------------------ Always Show Rate Box After Upload ------------------
 if "extracted_data" in st.session_state:
@@ -340,7 +380,8 @@ if "extracted_data" in st.session_state:
         """,
         unsafe_allow_html=True
     )
-# ------------------ Display Left-Side Rate Box ------------------
+
+# ------------------ Display Left-Side Rate Box CSS ------------------
 st.markdown(
     """
     <style>
@@ -380,19 +421,6 @@ st.markdown(
     """, unsafe_allow_html=True
 )
 
-#quote_table = "".join([f"<tr><td class='carrier'>{carrier}</td><td>${rate:,.2f}</td></tr>" for carrier, rate in fake_quotes.items()])
-
-#st.markdown(
- #   f"""
-  #  <div class="rate-box">
-   #     <h4>📊 Quick Rate Comparison</h4>
-    #    <table>
-     #       {quote_table}
-      #  </table>
-    #</div>
-    #""", unsafe_allow_html=True
-#)
-
 # ------------------ Show upload status ------------------
 if uploaded_file:
     st.markdown(
@@ -414,28 +442,43 @@ if "extracted_json" not in st.session_state:
         "drivers": []
     }, indent=4)
 
-
-
 # ------------------ Display Chat History ------------------
 for role, msg in st.session_state.chat_history:
     icon = "👤" if role == "user" else "🤖"
     bubble_color = "#E0E8FF" if role == "user" else "#f0f0f0"
     msg_clean = clean_spacing(msg)
     
-    st.markdown(
-        f"""
-        <div class="chat-message" style="
-            background-color:{bubble_color};
-            white-space: pre-line;
-            line-height: 1.5;
-            padding: 0.8rem;
-        ">
-            <strong>{icon} {role.capitalize()}</strong><br><br>
-            {msg_clean}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    # Allow HTML rendering for assistant messages
+    if role == "assistant":
+        st.markdown(
+            f"""
+            <div class="chat-message" style="
+                background-color:{bubble_color};
+                line-height: 1.5;
+                padding: 0.8rem;
+            ">
+                <strong>{icon} {role.capitalize()}</strong><br><br>
+                {msg_clean}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            f"""
+            <div class="chat-message" style="
+                background-color:{bubble_color};
+                white-space: pre-line;
+                line-height: 1.5;
+                padding: 0.8rem;
+            ">
+                <strong>{icon} {role.capitalize()}</strong><br><br>
+                {msg_clean}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
 # ------------------ Chat Input + Completion ------------------
 user_prompt = st.chat_input("Ask your insurance question...")
 if "extracted_json" in st.session_state:
@@ -470,7 +513,6 @@ if user_prompt:
     with st.spinner("Thinking..."):
         try:
             extracted_text = st.session_state.get("extracted_text", "")
-            summary_done = st.session_state.get("summary_generated", False)
             dec_summary = st.session_state.get("dec_summary", "")
 
             # ✅ Build messages starting with system prompt
@@ -504,62 +546,31 @@ if user_prompt:
                 }
             ]
 
-            # ✅ Append entire chat history before the new message
-            for role, msg in st.session_state.chat_history:
+            # ✅ Include previous conversation context if Dec summary exists
+            if dec_summary:
+                messages.append({
+                    "role": "system",
+                    "content": f"Previous Dec Page summary for context:\n{dec_summary}"
+                })
+
+            # ✅ Append chat history (excluding the current user message)
+            for role, msg in st.session_state.chat_history[:-1]:  # Exclude last user message we just added
                 messages.append({"role": role, "content": msg})
 
-            # ✅ Add the new user prompt
+            # ✅ Add the current user prompt
             messages.append({"role": "user", "content": user_prompt})
-
-            # Initialize session state variables if they don't exist
-            if "summary_generated" not in st.session_state:
-                st.session_state.summary_generated = False
-            if "dec_summary" not in st.session_state:
-                st.session_state.dec_summary = None
-
-            # Determine message content based on context
-            if extracted_text and not st.session_state.summary_generated:
-                # First-time upload: send raw Dec Page for explanation
-                messages.append({
-                    "role": "user",
-                    "content": f"This is my insurance policy. Can you explain what I have?\n\n{extracted_text}"
-                })
-                st.session_state.summary_generated = True
-
-            elif st.session_state.dec_summary:
-                # Follow-up: send stored summary + new question
-                messages.append({
-                    "role": "user",
-                    "content": (
-                        f"You previously reviewed my Dec Page. Here is the summary you gave me:\n\n"
-                        f"{st.session_state.dec_summary}\n\n"
-                        f"My question is: {user_prompt}"
-                    )
-                })
-
-            else:
-                # No Dec Page context: send question as-is
-                messages.append({
-                    "role": "user",
-                    "content": user_prompt
-                })
 
             # Run ChatGPT
             response = client.chat.completions.create(
                 model="gpt-5-chat-latest",
                 messages=messages,
-                max_tokens=16000,
+                max_tokens=1000,
                 timeout=30
             )
 
             if response.choices and response.choices[0].message:
                 reply = response.choices[0].message.content.strip()
                 st.session_state.chat_history.append(("assistant", reply))
-
-                # Save the first assistant response as the Dec summary
-                if not st.session_state.get("dec_summary") and st.session_state.get("summary_generated"):
-                    st.session_state.dec_summary = reply
-
                 st.rerun()
             else:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
