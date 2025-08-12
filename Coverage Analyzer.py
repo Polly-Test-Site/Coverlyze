@@ -6,6 +6,99 @@ import json
 import random
 from datetime import datetime
 import time
+import io
+from pdf2image import convert_from_bytes
+from google.cloud import vision
+import os
+
+# ------------------ Google OCR Setup ------------------
+def setup_google_vision():
+    """Initialize Google Cloud Vision client with credentials from Streamlit secrets"""
+    try:
+        # Use the Google service account JSON stored in Streamlit secrets
+        if "GOOGLE_SERVICE_ACCOUNT_JSON" in st.secrets:
+            # Parse the JSON string from secrets
+            credentials_info = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT_JSON"])
+            
+            # Create temporary credentials file
+            with open("google_credentials.json", "w") as f:
+                json.dump(credentials_info, f)
+            
+            # Set environment variable
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "google_credentials.json"
+            
+            # Initialize the Vision client
+            client = vision.ImageAnnotatorClient()
+            return client
+        else:
+            st.error("Google service account JSON not found in Streamlit secrets. Please add 'GOOGLE_SERVICE_ACCOUNT_JSON' to your secrets.")
+            return None
+            
+    except json.JSONDecodeError as e:
+        st.error(f"Invalid JSON format in GOOGLE_SERVICE_ACCOUNT_JSON: {str(e)}")
+        return None
+    except Exception as e:
+        st.error(f"Failed to setup Google Vision API: {str(e)}")
+        return None
+
+def extract_text_with_google_ocr(pdf_file):
+    """Extract text from PDF using Google Cloud Vision OCR"""
+    try:
+        # Initialize Google Vision client
+        vision_client = setup_google_vision()
+        if not vision_client:
+            raise Exception("Google Vision client not initialized")
+        
+        # Convert PDF pages to images
+        pdf_bytes = pdf_file.read()
+        pdf_file.seek(0)  # Reset file pointer for potential future use
+        
+        # Convert PDF to images (one image per page)
+        images = convert_from_bytes(pdf_bytes, dpi=200, fmt='PNG')
+        
+        extracted_texts = []
+        
+        # Process each page
+        for i, image in enumerate(images):
+            # Convert PIL image to bytes
+            img_byte_arr = io.BytesIO()
+            image.save(img_byte_arr, format='PNG')
+            img_byte_arr = img_byte_arr.getvalue()
+            
+            # Create Google Vision image object
+            vision_image = vision.Image(content=img_byte_arr)
+            
+            # Perform text detection
+            response = vision_client.text_detection(image=vision_image)
+            texts = response.text_annotations
+            
+            if texts:
+                page_text = texts[0].description
+                extracted_texts.append(page_text)
+            
+            # Check for errors
+            if response.error.message:
+                raise Exception(f'Google Vision API error: {response.error.message}')
+        
+        # Combine all page texts
+        full_text = '\n\n--- PAGE BREAK ---\n\n'.join(extracted_texts)
+        return full_text
+        
+    except Exception as e:
+        st.error(f"Google OCR extraction failed: {str(e)}")
+        # Fallback to pdfplumber
+        st.warning("Falling back to pdfplumber for text extraction...")
+        return extract_text_with_pdfplumber(pdf_file)
+
+def extract_text_with_pdfplumber(pdf_file):
+    """Fallback text extraction using pdfplumber"""
+    try:
+        with pdfplumber.open(pdf_file) as pdf:
+            text = "\n".join([page.extract_text() or "" for page in pdf.pages])
+        return text
+    except Exception as e:
+        st.error(f"Pdfplumber extraction also failed: {str(e)}")
+        return ""
 
 # ------------------ Intent Detection ------------------
 def detect_intent(user_message):
@@ -76,7 +169,8 @@ def pinned_download_button(json_data, filename="dec_page_extracted.json"):
     </style>
     """, unsafe_allow_html=True)
     
-def extract_dec_page_data(pdf_path):
+def extract_dec_page_data(extracted_text):
+    """Extract structured data from the OCR extracted text"""
     data = {
         "policy_info": {},
         "insured": {},
@@ -84,13 +178,10 @@ def extract_dec_page_data(pdf_path):
         "drivers": []
     }
 
-    with pdfplumber.open(pdf_path) as pdf:
-        text = "\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
-
     # ---------------- Policy Information ----------------
-    policy_number = re.search(r"Policy #:\s*(\S+)", text)
-    policy_term = re.search(r"Term:\s*([\d/.-]+)\s*-\s*([\d/.-]+)", text)
-    premium = re.search(r"Full Term Premium:\s*\$([\d,]+\.\d{2})", text)
+    policy_number = re.search(r"Policy #:\s*(\S+)", extracted_text)
+    policy_term = re.search(r"Term:\s*([\d/.-]+)\s*-\s*([\d/.-]+)", extracted_text)
+    premium = re.search(r"Full Term Premium:\s*\$([\d,]+\.\d{2})", extracted_text)
 
     if policy_number:
         data["policy_info"]["policy_number"] = policy_number.group(1)
@@ -101,16 +192,16 @@ def extract_dec_page_data(pdf_path):
         data["policy_info"]["full_term_premium"] = premium.group(1)
 
     # ---------------- Named Insured ----------------
-    insured_name = re.search(r"Name:\s*(.*)", text)
-    email = re.search(r"Email:\s*(\S+@\S+)", text)
-    address = re.search(r"Address:\s*(\d+.*?MA\s*\d+)", text)
+    insured_name = re.search(r"Name:\s*(.*)", extracted_text)
+    email = re.search(r"Email:\s*(\S+@\S+)", extracted_text)
+    address = re.search(r"Address:\s*(\d+.*?MA\s*\d+)", extracted_text)
 
     data["insured"]["name"] = insured_name.group(1).strip() if insured_name else ""
     data["insured"]["email"] = email.group(1).strip() if email else ""
     data["insured"]["address"] = address.group(1).strip() if address else ""
 
     # ---------------- Vehicles & Coverages ----------------
-    vehicle_blocks = re.findall(r"Veh #\d+ Company Veh #\d+: ([\s\S]*?)(?=Veh #\d+|Drivers|$)", text)
+    vehicle_blocks = re.findall(r"Veh #\d+ Company Veh #\d+: ([\s\S]*?)(?=Veh #\d+|Drivers|$)", extracted_text)
     for vb in vehicle_blocks:
         year_make_model = re.search(r"(\d{4}),\s*([A-Z]+),\s*([A-Za-z0-9\s/]+)", vb)
         vin = re.search(r"([A-HJ-NPR-Z0-9]{17})", vb)
@@ -140,7 +231,7 @@ def extract_dec_page_data(pdf_path):
         })
 
     # ---------------- Drivers ----------------
-    driver_blocks = re.findall(r"Driver #\s*(\d+)\s*([A-Z\s]+)\s(\d{2}/\d{2}/\d{4})", text)
+    driver_blocks = re.findall(r"Driver #\s*(\d+)\s*([A-Z\s]+)\s(\d{2}/\d{2}/\d{4})", extracted_text)
     for db in driver_blocks:
         data["drivers"].append({
             "driver_number": db[0],
@@ -384,14 +475,16 @@ def generate_auto_summary(extracted_text, extracted_data):
     
     return "I've received your declaration page. Let me review it and provide recommendations."
 
-# ------------------ Extract Data and Auto-generate Summary ------------------
+# ------------------ Extract Data with Google OCR ------------------
 if uploaded_file and "extracted_text" not in st.session_state:
-    with st.spinner("Extracting Dec Page data..."):
-        extracted_data = extract_dec_page_data(uploaded_file)
-        st.session_state.extracted_json = json.dumps(extracted_data, indent=4)
-        with pdfplumber.open(uploaded_file) as pdf:
-            extracted_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
+    with st.spinner("Extracting text using Google OCR..."):
+        # Use Google OCR for text extraction
+        extracted_text = extract_text_with_google_ocr(uploaded_file)
         st.session_state.extracted_text = extracted_text
+        
+        # Extract structured data from the OCR text
+        extracted_data = extract_dec_page_data(extracted_text)
+        st.session_state.extracted_json = json.dumps(extracted_data, indent=4)
         st.session_state.extracted_data = extracted_data
 
     # ✅ Add delay before showing rates
@@ -417,7 +510,7 @@ if "extracted_data" in st.session_state:
     st.markdown(
         f"""
         <div class="rate-box">
-            <h4> Live Rate Comparison</h4>
+            <h4>🔍 Live Rate Comparison (OCR Powered)</h4>
             <table>{quote_table}</table>
         </div>
         """,
@@ -467,7 +560,7 @@ st.markdown(
 # ------------------ Show upload status ------------------
 if uploaded_file:
     st.markdown(
-        "<div style='text-align:center; color:#1F2D58; font-size:0.95rem; margin-top:5px;'>✅ Dec Page uploaded</div>",
+        "<div style='text-align:center; color:#1F2D58; font-size:0.95rem; margin-top:5px;'>✅ Dec Page uploaded and processed with Google OCR</div>",
         unsafe_allow_html=True
     )
 elif "extracted_text" not in st.session_state:
@@ -574,6 +667,7 @@ if user_prompt:
                         "Always watch for gaps or extra coverage needs based on what clients mention (new car, home, family changes, travel, business needs, etc.). "
                         "Whenever relevant, proactively and naturally suggest higher coverage limits, umbrella policies, or additional lines like home, renters, condo, motorcycle, boat, RV, small business insurance, dealership products (warranties), and roadside assistance (like AAA). "
                         "Whenever the user uploads a document, confirm it is an insurance declaration page and use it to present comparison quotes. You may make up the premium amounts.\n"
+                        "The document has been processed using advanced Google OCR for maximum accuracy.\n"
                         "Never be pushy; your tone should always feel helpful and conversational.\n\n"
 
                         "Communication Guidelines:\n"
@@ -593,7 +687,7 @@ if user_prompt:
             if dec_summary:
                 messages.append({
                     "role": "system",
-                    "content": f"Previous Dec Page summary for context:\n{dec_summary}"
+                    "content": f"Previous Dec Page summary for context (extracted via Google OCR):\n{dec_summary}"
                 })
 
             # ✅ Append chat history (excluding the current user message)
@@ -619,30 +713,7 @@ if user_prompt:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            st.rerun()
 
 
 
