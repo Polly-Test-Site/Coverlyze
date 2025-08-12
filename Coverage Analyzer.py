@@ -419,6 +419,7 @@ def clean_markdown(text):
 # ------------------ OpenAI Setup ------------------
 client = OpenAI(
     api_key=st.secrets["OPENAI_API_KEY"]
+    # organization parameter is optional - only include if you have one in secrets
 )
 
 # ------------------ Session State ------------------
@@ -713,10 +714,3 @@ if user_prompt:
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
             st.rerun()
-
-
-
-
-
-
-
