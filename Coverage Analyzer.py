@@ -7,91 +7,157 @@ import random
 from datetime import datetime
 import time
 import io
-from pdf2image import convert_from_bytes
-from google.cloud import vision
-import os
+import uuid
+from google.oauth2 import service_account
+from google.cloud import vision_v1 as vision
+from google.cloud import storage
+from google.cloud.vision_v1 import AnnotateFileResponse
 
 
-# ------------------ Google OCR Setup ------------------
-def setup_google_vision():
-    """Initialize Google Cloud Vision client with credentials from Streamlit secrets"""
+# ------------------ Enhanced Google OCR Setup (Option A: Async PDF via GCS) ------------------
+def setup_vision_and_storage_clients():
+    """Build Vision + Storage clients from in-memory service account (Streamlit secrets)."""
     try:
-        # Use the Google service account JSON stored in Streamlit secrets
-        if "GOOGLE_SERVICE_ACCOUNT_JSON" in st.secrets:
-            # Parse the JSON string from secrets
-            credentials_info = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT_JSON"])
-
-            # Create temporary credentials file
-            with open("google_credentials.json", "w") as f:
-                json.dump(credentials_info, f)
-
-            # Set environment variable
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "google_credentials.json"
-
-            # Initialize the Vision client
-            client = vision.ImageAnnotatorClient()
-            return client
-        else:
-            st.error(
-                "Google service account JSON not found in Streamlit secrets. Please add 'GOOGLE_SERVICE_ACCOUNT_JSON' to your secrets.")
-            return None
-
-    except json.JSONDecodeError as e:
-        st.error(f"Invalid JSON format in GOOGLE_SERVICE_ACCOUNT_JSON: {str(e)}")
-        return None
+        info = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT_JSON"])
+        creds = service_account.Credentials.from_service_account_info(info)
+        return vision.ImageAnnotatorClient(credentials=creds), storage.Client(credentials=creds)
     except Exception as e:
-        st.error(f"Failed to setup Google Vision API: {str(e)}")
-        return None
+        st.error(f"Failed to setup Google Vision/Storage clients: {str(e)}")
+        return None, None
 
 
-def extract_text_with_google_ocr(pdf_file):
-    """Extract text from PDF using Google Cloud Vision OCR"""
+def normalize_ocr_text(text):
+    """Normalize OCR text to reduce parsing errors"""
+    if not text:
+        return text
+    
+    # Fix common OCR ligatures
+    text = text.replace('\ufb01', 'fi').replace('\ufb02', 'fl')
+    text = text.replace('\ufb03', 'ffi').replace('\ufb04', 'ffl')
+    
+    # Normalize whitespace
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'\r?\n+', '\n', text)
+    
+    # Fix common OCR character substitutions
+    text = text.replace('|', 'I').replace('0', 'O', text.count('0') // 3)  # Conservative 0->O replacement
+    
+    return text.strip()
+
+
+def needs_ocr(text: str) -> bool:
+    """Heuristic to determine if OCR is needed (if pdfplumber text is poor quality)"""
+    if not text or len(text.strip()) < 100:
+        return True
+    
+    # Check ratio of alphanumeric characters
+    alphanumeric_ratio = sum(c.isalnum() for c in text) / len(text)
+    if alphanumeric_ratio < 0.3:
+        return True
+        
+    # Check for too many single characters (sign of poor extraction)
+    words = text.split()
+    single_chars = sum(1 for word in words if len(word) == 1)
+    if len(words) > 0 and single_chars / len(words) > 0.3:
+        return True
+        
+    return False
+
+
+def vision_pdf_ocr(pdf_bytes: bytes, gcs_input_bucket: str, gcs_output_bucket: str, timeout_s: int = 300, delete_after: bool = True) -> str:
+    """High-accuracy OCR: upload PDF to GCS → async DOCUMENT_TEXT_DETECTION → download JSON → stitch full_text."""
+    vision_client, storage_client = setup_vision_and_storage_clients()
+    
+    if not vision_client or not storage_client:
+        raise Exception("Failed to initialize Google Cloud clients")
+
+    # 1) Upload PDF to GCS
+    input_bucket = storage_client.bucket(gcs_input_bucket)
+    output_bucket = storage_client.bucket(gcs_output_bucket)
+
+    input_blob_name = f"input/{uuid.uuid4()}.pdf"
+    input_blob = input_bucket.blob(input_blob_name)
+    input_blob.upload_from_string(pdf_bytes, content_type="application/pdf")
+
+    # 2) Configure async request
+    feature = vision.Feature(type=vision.Feature.Type.DOCUMENT_TEXT_DETECTION)
+    gcs_source_uri = f"gs://{gcs_input_bucket}/{input_blob_name}"
+    gcs_dest_prefix = f"vision-output/{uuid.uuid4()}"  # folder prefix for JSON shards
+    gcs_dest_uri = f"gs://{gcs_output_bucket}/{gcs_dest_prefix}/"
+
+    input_config = vision.InputConfig(gcs_source={"uri": gcs_source_uri}, mime_type="application/pdf")
+    output_config = vision.OutputConfig(gcs_destination={"uri": gcs_dest_uri}, batch_size=50)
+
+    request = vision.AsyncAnnotateFileRequest(
+        features=[feature],
+        input_config=input_config,
+        output_config=output_config,
+    )
+
+    # 3) Kick off job & wait
+    operation = vision_client.async_batch_annotate_files(requests=[request])
+    operation.result(timeout=timeout_s)  # raises on timeout
+
+    # 4) Read results from GCS
+    # Vision writes n JSON shards (one per ~50 pages). We fetch all and stitch.
+    texts = []
+    for blob in storage_client.list_blobs(output_bucket, prefix=gcs_dest_prefix + "/"):
+        data = blob.download_as_bytes()
+        resp = AnnotateFileResponse.from_json(data.decode("utf-8"))
+        for r in resp.responses:
+            if r.full_text_annotation and r.full_text_annotation.text:
+                texts.append(r.full_text_annotation.text)
+
+    full_text = "\n\n--- PAGE BREAK ---\n\n".join(texts).strip()
+
+    # 5) Optional cleanup
+    if delete_after:
+        try:
+            input_blob.delete()
+            for blob in storage_client.list_blobs(output_bucket, prefix=gcs_dest_prefix + "/"):
+                blob.delete()
+        except Exception:
+            pass  # non-fatal
+
+    return normalize_ocr_text(full_text)
+
+
+def extract_text_smart(pdf_file):
+    """Smart extraction: try pdfplumber first, then high-accuracy Vision OCR if needed"""
     try:
-        # Initialize Google Vision client
-        vision_client = setup_google_vision()
-        if not vision_client:
-            raise Exception("Google Vision client not initialized")
+        # 1) Try text layer first (fast for text-based PDFs)
+        pdf_file.seek(0)
+        base_text = extract_text_with_pdfplumber(pdf_file)
+        
+        if not needs_ocr(base_text):
+            st.info("✅ PDF has good text layer - using direct extraction")
+            return normalize_ocr_text(base_text)
 
-        # Convert PDF pages to images
+        # 2) OCR fallback for scanned/poor quality PDFs
+        st.info("📄 PDF appears to be scanned - using high-accuracy Google Vision OCR")
+        pdf_file.seek(0)
         pdf_bytes = pdf_file.read()
-        pdf_file.seek(0)  # Reset file pointer for potential future use
-
-        # Convert PDF to images (one image per page)
-        images = convert_from_bytes(pdf_bytes, dpi=200, fmt='PNG')
-
-        extracted_texts = []
-
-        # Process each page
-        for i, image in enumerate(images):
-            # Convert PIL image to bytes
-            img_byte_arr = io.BytesIO()
-            image.save(img_byte_arr, format='PNG')
-            img_byte_arr = img_byte_arr.getvalue()
-
-            # Create Google Vision image object
-            vision_image = vision.Image(content=img_byte_arr)
-
-            # Perform text detection
-            response = vision_client.text_detection(image=vision_image)
-            texts = response.text_annotations
-
-            if texts:
-                page_text = texts[0].description
-                extracted_texts.append(page_text)
-
-            # Check for errors
-            if response.error.message:
-                raise Exception(f'Google Vision API error: {response.error.message}')
-
-        # Combine all page texts
-        full_text = '\n\n--- PAGE BREAK ---\n\n'.join(extracted_texts)
-        return full_text
-
+        
+        text = vision_pdf_ocr(
+            pdf_bytes,
+            gcs_input_bucket=st.secrets["GCS_INPUT_BUCKET"],
+            gcs_output_bucket=st.secrets["GCS_OUTPUT_BUCKET"],
+            timeout_s=300
+        )
+        
+        # Fallback if Vision fails
+        if not text:
+            st.warning("Vision PDF OCR returned empty text. Using pdfplumber as final fallback...")
+            pdf_file.seek(0)
+            return normalize_ocr_text(extract_text_with_pdfplumber(pdf_file))
+            
+        return text
+        
     except Exception as e:
-        st.error(f"Google OCR extraction failed: {str(e)}")
-        # Fallback to pdfplumber
+        st.error(f"Smart extraction failed: {str(e)}")
         st.warning("Falling back to pdfplumber for text extraction...")
-        return extract_text_with_pdfplumber(pdf_file)
+        pdf_file.seek(0)
+        return normalize_ocr_text(extract_text_with_pdfplumber(pdf_file))
 
 
 def extract_text_with_pdfplumber(pdf_file):
@@ -101,7 +167,7 @@ def extract_text_with_pdfplumber(pdf_file):
             text = "\n".join([page.extract_text() or "" for page in pdf.pages])
         return text
     except Exception as e:
-        st.error(f"Pdfplumber extraction also failed: {str(e)}")
+        st.error(f"Pdfplumber extraction failed: {str(e)}")
         return ""
 
 
@@ -178,7 +244,7 @@ def pinned_download_button(json_data, filename="dec_page_extracted.json"):
 
 
 def extract_dec_page_data(extracted_text):
-    """Extract structured data from the OCR extracted text"""
+    """Extract structured data from the OCR extracted text with improved regex patterns"""
     data = {
         "policy_info": {},
         "insured": {},
@@ -186,10 +252,13 @@ def extract_dec_page_data(extracted_text):
         "drivers": []
     }
 
+    # Apply normalization for better regex matching
+    normalized_text = normalize_ocr_text(extracted_text)
+
     # ---------------- Policy Information ----------------
-    policy_number = re.search(r"Policy #:\s*(\S+)", extracted_text)
-    policy_term = re.search(r"Term:\s*([\d/.-]+)\s*-\s*([\d/.-]+)", extracted_text)
-    premium = re.search(r"Full Term Premium:\s*\$([\d,]+\.\d{2})", extracted_text)
+    policy_number = re.search(r"Policy\s*#?:?\s*([A-Z0-9\-]+)", normalized_text, re.I)
+    policy_term = re.search(r"Term:?\s*([\d/.-]+)\s*[-–—]\s*([\d/.-]+)", normalized_text)
+    premium = re.search(r"(?:Full\s*Term\s*Premium|Premium):?\s*\$?([\d,]+\.?\d{0,2})", normalized_text, re.I)
 
     if policy_number:
         data["policy_info"]["policy_number"] = policy_number.group(1)
@@ -200,31 +269,31 @@ def extract_dec_page_data(extracted_text):
         data["policy_info"]["full_term_premium"] = premium.group(1)
 
     # ---------------- Named Insured ----------------
-    insured_name = re.search(r"Name:\s*(.*)", extracted_text)
-    email = re.search(r"Email:\s*(\S+@\S+)", extracted_text)
-    address = re.search(r"Address:\s*(\d+.*?MA\s*\d+)", extracted_text)
+    insured_name = re.search(r"(?:Name|Insured):?\s*([A-Z][A-Za-z\s,.']+?)(?:\n|Email|Address)", normalized_text, re.I)
+    email = re.search(r"Email:?\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", normalized_text, re.I)
+    address = re.search(r"Address:?\s*(\d+.*?(?:MA|Mass)\s*\d{5})", normalized_text, re.I | re.DOTALL)
 
     data["insured"]["name"] = insured_name.group(1).strip() if insured_name else ""
     data["insured"]["email"] = email.group(1).strip() if email else ""
     data["insured"]["address"] = address.group(1).strip() if address else ""
 
     # ---------------- Vehicles & Coverages ----------------
-    vehicle_blocks = re.findall(r"Veh #\d+ Company Veh #\d+: ([\s\S]*?)(?=Veh #\d+|Drivers|$)", extracted_text)
+    vehicle_blocks = re.findall(r"Veh\s*#?\s*\d+.*?:([\s\S]*?)(?=Veh\s*#?\s*\d+|Drivers?|$)", normalized_text, re.I)
     for vb in vehicle_blocks:
-        year_make_model = re.search(r"(\d{4}),\s*([A-Z]+),\s*([A-Za-z0-9\s/]+)", vb)
+        year_make_model = re.search(r"(\d{4})[,\s]*([A-Z]+)[,\s]*([A-Za-z0-9\s/\-]+)", vb)
         vin = re.search(r"([A-HJ-NPR-Z0-9]{17})", vb)
-        vehicle_premium = re.search(r"Vehicle Premium:\s*\$([\d,]+\.\d{2})", vb)
+        vehicle_premium = re.search(r"Vehicle\s*Premium:?\s*\$?([\d,]+\.?\d{0,2})", vb, re.I)
 
-        # Bodily Injury
-        bi_match = re.search(r"Optional bodily injury\s+(\d{1,3},?\d*)\s+(\d{1,3},?\d*)", vb)
+        # Bodily Injury - more flexible pattern
+        bi_match = re.search(r"(?:Optional\s*)?bodily\s*injury[:\s]*(\d{1,3})[,\s]*(\d{1,3})", vb, re.I)
         bodily_injury = f"{bi_match.group(1)}/{bi_match.group(2)}" if bi_match else ""
 
-        # Collision
-        collision_match = re.search(r"Collision\s+(\d+)", vb)
+        # Collision - more flexible pattern
+        collision_match = re.search(r"Collision[:\s]*(\d+)", vb, re.I)
         collision_deductible = collision_match.group(1) if collision_match else ""
 
-        # Comprehensive
-        comp_match = re.search(r"Comprehensive\s+(\d+)", vb)
+        # Comprehensive - more flexible pattern
+        comp_match = re.search(r"Comprehensive[:\s]*(\d+)", vb, re.I)
         comprehensive_deductible = comp_match.group(1) if comp_match else ""
 
         data["vehicles"].append({
@@ -239,7 +308,7 @@ def extract_dec_page_data(extracted_text):
         })
 
     # ---------------- Drivers ----------------
-    driver_blocks = re.findall(r"Driver #\s*(\d+)\s*([A-Z\s]+)\s(\d{2}/\d{2}/\d{4})", extracted_text)
+    driver_blocks = re.findall(r"Driver\s*#?\s*(\d+)\s*([A-Z][A-Za-z\s]+)\s*(\d{1,2}/\d{1,2}/\d{4})", normalized_text, re.I)
     for db in driver_blocks:
         data["drivers"].append({
             "driver_number": db[0],
@@ -478,7 +547,7 @@ def generate_auto_summary(extracted_text, extracted_data):
         response = client.chat.completions.create(
             model="gpt-5-chat-latest",
             messages=messages,
-            max_tokens=15000,
+            max_tokens=1000,
             timeout=30
         )
 
@@ -490,11 +559,11 @@ def generate_auto_summary(extracted_text, extracted_data):
     return "I've received your declaration page. Let me review it and provide recommendations."
 
 
-# ------------------ Extract Data with Google OCR ------------------
+# ------------------ Extract Data with Enhanced OCR ------------------
 if uploaded_file and "extracted_text" not in st.session_state:
-    with st.spinner("Extracting text using Google OCR..."):
-        # Use Google OCR for text extraction
-        extracted_text = extract_text_with_google_ocr(uploaded_file)
+    with st.spinner("Analyzing PDF and extracting text with enhanced accuracy..."):
+        # Use smart extraction (pdfplumber first, then Vision OCR if needed)
+        extracted_text = extract_text_smart(uploaded_file)
         st.session_state.extracted_text = extracted_text
 
         # Extract structured data from the OCR text
@@ -525,7 +594,7 @@ if "extracted_data" in st.session_state:
     st.markdown(
         f"""
         <div class="rate-box">
-            <h4>🔍 Live Rate Comparison (OCR Powered)</h4>
+            <h4>🔍 Live Rate Comparison (Enhanced OCR)</h4>
             <table>{quote_table}</table>
         </div>
         """,
@@ -575,7 +644,7 @@ st.markdown(
 # ------------------ Show upload status ------------------
 if uploaded_file:
     st.markdown(
-        "<div style='text-align:center; color:#1F2D58; font-size:0.95rem; margin-top:5px;'>✅ Dec Page uploaded and processed with Google OCR</div>",
+        "<div style='text-align:center; color:#1F2D58; font-size:0.95rem; margin-top:5px;'>✅ Dec Page uploaded and processed with enhanced OCR accuracy</div>",
         unsafe_allow_html=True
     )
 elif "extracted_text" not in st.session_state:
@@ -682,7 +751,7 @@ if user_prompt:
                         "Always watch for gaps or extra coverage needs based on what clients mention (new car, home, family changes, travel, business needs, etc.). "
                         "Whenever relevant, proactively and naturally suggest higher coverage limits, umbrella policies, or additional lines like home, renters, condo, motorcycle, boat, RV, small business insurance, dealership products (warranties), and roadside assistance (like AAA). "
                         "Whenever the user uploads a document, confirm it is an insurance declaration page and use it to present comparison quotes. You may make up the premium amounts.\n"
-                        "The document has been processed using advanced Google OCR for maximum accuracy.\n"
+                        "The document has been processed using advanced Google OCR with enhanced accuracy features for maximum precision.\n"
                         "Never be pushy; your tone should always feel helpful and conversational.\n\n"
 
                         "Communication Guidelines:\n"
@@ -702,7 +771,7 @@ if user_prompt:
             if dec_summary:
                 messages.append({
                     "role": "system",
-                    "content": f"Previous Dec Page summary for context (extracted via Google OCR):\n{dec_summary}"
+                    "content": f"Previous Dec Page summary for context (extracted via enhanced Google OCR):\n{dec_summary}"
                 })
 
             # ✅ Append chat history (excluding the current user message)
@@ -716,7 +785,7 @@ if user_prompt:
             response = client.chat.completions.create(
                 model="gpt-5-chat-latest",
                 messages=messages,
-                max_tokens=15000,
+                max_tokens=1000,
                 timeout=30
             )
 
@@ -729,5 +798,3 @@ if user_prompt:
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
             st.rerun()
-
-
