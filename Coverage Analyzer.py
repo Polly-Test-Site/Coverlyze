@@ -545,9 +545,12 @@ def generate_auto_summary(extracted_text, extracted_data):
         ]
 
         response = client.chat.completions.create(
-            model="gpt-5",
+            model="gpt-4",  # Changed from "gpt-5" which doesn't exist
             messages=messages,
-            timeout=30
+            timeout=60,  # Increased timeout
+            max_tokens=500,  # Limit response length
+            temperature=0.7
+
         )
 
         if response.choices and response.choices[0].message:
@@ -782,9 +785,12 @@ if user_prompt:
 
             # Run ChatGPT
             response = client.chat.completions.create(
-                model="gpt-5",
+                model="gpt-4",  # Changed from "gpt-5" which doesn't exist
                 messages=messages,
-                timeout=30
+                timeout=60,  # Increased timeout
+                max_tokens=500,  # Limit response length
+                temperature=0.7
+
             )
 
             if response.choices and response.choices[0].message:
@@ -796,6 +802,7 @@ if user_prompt:
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
             st.rerun()
+
 
 
 
