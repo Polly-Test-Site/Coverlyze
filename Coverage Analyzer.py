@@ -11,88 +11,58 @@ from pdf2image import convert_from_bytes
 from google.cloud import vision
 import os
 
-
 # ------------------ Google OCR Setup ------------------
 def setup_google_vision():
     """Initialize Google Cloud Vision client with credentials from Streamlit secrets"""
     try:
-        # Use the Google service account JSON stored in Streamlit secrets
         if "GOOGLE_SERVICE_ACCOUNT_JSON" in st.secrets:
-            # Parse the JSON string from secrets
             credentials_info = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT_JSON"])
-
-            # Create temporary credentials file
             with open("google_credentials.json", "w") as f:
                 json.dump(credentials_info, f)
-
-            # Set environment variable
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "google_credentials.json"
-
-            # Initialize the Vision client
             client = vision.ImageAnnotatorClient()
             return client
         else:
-            st.error(
-                "Google service account JSON not found in Streamlit secrets. Please add 'GOOGLE_SERVICE_ACCOUNT_JSON' to your secrets.")
+            st.error("Google service account JSON not found in Streamlit secrets.")
             return None
-
-    except json.JSONDecodeError as e:
-        st.error(f"Invalid JSON format in GOOGLE_SERVICE_ACCOUNT_JSON: {str(e)}")
-        return None
     except Exception as e:
         st.error(f"Failed to setup Google Vision API: {str(e)}")
         return None
 
-
 def extract_text_with_google_ocr(pdf_file):
     """Extract text from PDF using Google Cloud Vision OCR"""
     try:
-        # Initialize Google Vision client
         vision_client = setup_google_vision()
         if not vision_client:
             raise Exception("Google Vision client not initialized")
-
-        # Convert PDF pages to images
+        
         pdf_bytes = pdf_file.read()
-        pdf_file.seek(0)  # Reset file pointer for potential future use
-
-        # Convert PDF to images (one image per page)
+        pdf_file.seek(0)
         images = convert_from_bytes(pdf_bytes, dpi=200, fmt='PNG')
-
         extracted_texts = []
-
-        # Process each page
+        
         for i, image in enumerate(images):
-            # Convert PIL image to bytes
             img_byte_arr = io.BytesIO()
             image.save(img_byte_arr, format='PNG')
             img_byte_arr = img_byte_arr.getvalue()
-
-            # Create Google Vision image object
             vision_image = vision.Image(content=img_byte_arr)
-
-            # Perform text detection
             response = vision_client.text_detection(image=vision_image)
             texts = response.text_annotations
-
+            
             if texts:
                 page_text = texts[0].description
                 extracted_texts.append(page_text)
-
-            # Check for errors
+            
             if response.error.message:
                 raise Exception(f'Google Vision API error: {response.error.message}')
-
-        # Combine all page texts
+        
         full_text = '\n\n--- PAGE BREAK ---\n\n'.join(extracted_texts)
         return full_text
-
+        
     except Exception as e:
         st.error(f"Google OCR extraction failed: {str(e)}")
-        # Fallback to pdfplumber
         st.warning("Falling back to pdfplumber for text extraction...")
         return extract_text_with_pdfplumber(pdf_file)
-
 
 def extract_text_with_pdfplumber(pdf_file):
     """Fallback text extraction using pdfplumber"""
@@ -104,6 +74,169 @@ def extract_text_with_pdfplumber(pdf_file):
         st.error(f"Pdfplumber extraction also failed: {str(e)}")
         return ""
 
+# ------------------ State Detection and Context Functions ------------------
+def detect_client_location(text_content="", chat_history=[]):
+    """Detect client location from uploaded documents or conversation"""
+    state_patterns = {
+        'Alabama': ['AL', 'Alabama'], 'Alaska': ['AK', 'Alaska'], 'Arizona': ['AZ', 'Arizona'],
+        'Arkansas': ['AR', 'Arkansas'], 'California': ['CA', 'California'], 'Colorado': ['CO', 'Colorado'],
+        'Connecticut': ['CT', 'Connecticut'], 'Delaware': ['DE', 'Delaware'], 'Florida': ['FL', 'Florida'],
+        'Georgia': ['GA', 'Georgia'], 'Hawaii': ['HI', 'Hawaii'], 'Idaho': ['ID', 'Idaho'],
+        'Illinois': ['IL', 'Illinois'], 'Indiana': ['IN', 'Indiana'], 'Iowa': ['IA', 'Iowa'],
+        'Kansas': ['KS', 'Kansas'], 'Kentucky': ['KY', 'Kentucky'], 'Louisiana': ['LA', 'Louisiana'],
+        'Maine': ['ME', 'Maine'], 'Maryland': ['MD', 'Maryland'], 'Massachusetts': ['MA', 'Massachusetts'],
+        'Michigan': ['MI', 'Michigan'], 'Minnesota': ['MN', 'Minnesota'], 'Mississippi': ['MS', 'Mississippi'],
+        'Missouri': ['MO', 'Missouri'], 'Montana': ['MT', 'Montana'], 'Nebraska': ['NE', 'Nebraska'],
+        'Nevada': ['NV', 'Nevada'], 'New Hampshire': ['NH', 'New Hampshire'], 'New Jersey': ['NJ', 'New Jersey'],
+        'New Mexico': ['NM', 'New Mexico'], 'New York': ['NY', 'New York'], 'North Carolina': ['NC', 'North Carolina'],
+        'North Dakota': ['ND', 'North Dakota'], 'Ohio': ['OH', 'Ohio'], 'Oklahoma': ['OK', 'Oklahoma'],
+        'Oregon': ['OR', 'Oregon'], 'Pennsylvania': ['PA', 'Pennsylvania'], 'Rhode Island': ['RI', 'Rhode Island'],
+        'South Carolina': ['SC', 'South Carolina'], 'South Dakota': ['SD', 'South Dakota'], 'Tennessee': ['TN', 'Tennessee'],
+        'Texas': ['TX', 'Texas'], 'Utah': ['UT', 'Utah'], 'Vermont': ['VT', 'Vermont'],
+        'Virginia': ['VA', 'Virginia'], 'Washington': ['WA', 'Washington'], 'West Virginia': ['WV', 'West Virginia'],
+        'Wisconsin': ['WI', 'Wisconsin'], 'Wyoming': ['WY', 'Wyoming']
+    }
+    
+    if text_content:
+        for state, patterns in state_patterns.items():
+            for pattern in patterns:
+                if pattern in text_content:
+                    return state
+    
+    for role, message in chat_history:
+        for state, patterns in state_patterns.items():
+            for pattern in patterns:
+                if pattern.lower() in message.lower():
+                    return state
+    return None
+
+def get_state_specific_context(state):
+    """Return state-specific insurance context and requirements"""
+    state_info = {
+        'California': {
+            'minimums': '15/30/5 BI/PD',
+            'recommendations': '100/300/100 minimum due to high litigation environment',
+            'special_notes': 'High property values and active litigation environment require higher liability limits',
+            'regional_risks': 'Earthquakes, wildfires, expensive vehicle repairs, high uninsured rates',
+            'coverage_priorities': 'Focus on higher liability limits and comprehensive coverage'
+        },
+        'Florida': {
+            'minimums': '10/20/10 BI/PD + $10K PIP',
+            'recommendations': '100/300/100 + comprehensive coverage essential',
+            'special_notes': 'No-fault state with PIP requirements. Hurricane exposure makes comprehensive critical',
+            'regional_risks': 'Hurricanes, flooding, high uninsured motorist rates, weather damage',
+            'coverage_priorities': 'PIP options, comprehensive coverage, uninsured motorist'
+        },
+        'Texas': {
+            'minimums': '30/60/25 BI/PD',
+            'recommendations': '100/300/100 + lower comprehensive deductible for hail',
+            'special_notes': 'Higher minimum property damage reflects expensive vehicles on roads',
+            'regional_risks': 'Hail damage, tornadoes, large distances, expensive trucks/SUVs',
+            'coverage_priorities': 'Comprehensive coverage, rental reimbursement'
+        },
+        'New York': {
+            'minimums': '25/50/10 BI/PD + $50K PIP',
+            'recommendations': '250/500/250 due to high costs and litigation',
+            'special_notes': 'No-fault state with high medical costs and property values',
+            'regional_risks': 'Dense traffic, expensive repairs, high litigation rates, costly medical',
+            'coverage_priorities': 'Higher liability limits, PIP considerations'
+        },
+        'Michigan': {
+            'minimums': '50/100/10 BI/PD + PIP options',
+            'recommendations': 'Consider unlimited PIP vs. limited, higher uninsured motorist',
+            'special_notes': 'Unique PIP system - unlimited medical coverage available but expensive',
+            'regional_risks': 'High uninsured rates, winter weather, auto theft in Detroit area',
+            'coverage_priorities': 'PIP decision, uninsured motorist, comprehensive'
+        },
+        'Illinois': {
+            'minimums': '25/50/20 BI/PD',
+            'recommendations': '100/300/100 + uninsured motorist',
+            'special_notes': 'High uninsured motorist rates, especially in Chicago area',
+            'regional_risks': 'Urban congestion, winter weather, vehicle theft',
+            'coverage_priorities': 'Uninsured motorist, comprehensive for weather'
+        },
+        'Georgia': {
+            'minimums': '25/50/25 BI/PD',
+            'recommendations': '100/300/100 minimum',
+            'special_notes': 'Rapidly growing population increasing accident frequency',
+            'regional_risks': 'Atlanta traffic congestion, severe weather, hail damage',
+            'coverage_priorities': 'Liability limits, comprehensive coverage'
+        },
+        'Massachusetts': {
+            'minimums': '20/40/5 BI/PD + $8K PIP + $20K UM/UIM',
+            'recommendations': '100/300/100 minimum',
+            'special_notes': 'No-fault state with mandatory PIP and UM/UIM coverage',
+            'regional_risks': 'Dense urban traffic, winter weather, high repair costs',
+            'coverage_priorities': 'Higher liability limits, comprehensive coverage'
+        }
+    }
+    
+    return state_info.get(state, {
+        'minimums': 'Varies by state - please check local requirements',
+        'recommendations': '100/300/100 minimum recommended nationwide',
+        'special_notes': 'State requirements and risk factors vary significantly',
+        'regional_risks': 'Location-specific risks apply - weather, traffic, litigation environment',
+        'coverage_priorities': 'Adequate liability limits, comprehensive coverage'
+    })
+
+# ------------------ Universal System Prompt ------------------
+UNIVERSAL_SYSTEM_PROMPT = """
+You are a knowledgeable insurance agent with expertise in personal lines insurance across all U.S. states. You adapt your recommendations based on the client's location while maintaining professional standards and conversational communication.
+
+## Core Professional Standards:
+- Always assess client's full risk profile before making recommendations
+- Provide specific, scenario-based explanations for coverage needs
+- Consider budget constraints and offer tiered options
+- Include appropriate compliance disclaimers
+- Focus on asset protection and financial security
+- Adapt recommendations to state-specific requirements when location is known
+
+## Communication Style:
+1. **One question at a time** - Never overwhelm with multiple questions
+2. **Conversational but professional** - Like a knowledgeable friend who happens to be an expert
+3. **Scenario-driven explanations** - Use real-world examples to illustrate coverage importance
+4. **Visual formatting** - Use <h4> headings and <ul><li> bullets for clarity
+
+## Risk Assessment Framework:
+Before recommending coverage changes, systematically evaluate:
+- **Geographic Location**: State requirements, regional risks, cost of living
+- **Life Stage**: Young professional, growing family, established household, pre-retirement, retiree
+- **Asset Protection**: Home value, savings, business ownership, future earning potential
+- **Family Situation**: Dependents, spouse's coverage, elderly parents
+- **Lifestyle Risks**: Commute distance, social hosting, teen drivers, recreational vehicles
+- **Current Gaps**: Underinsured areas, missing coverages, outdated limits
+
+## Coverage Recommendation Process:
+For each suggestion, include:
+1. **Current Gap/Risk**: "Your current limits might be problematic because..."
+2. **Real Scenario**: "If you cause a multi-car accident with $200K in damages..."
+3. **Solution**: "Increasing coverage to [amount] costs approximately $X more per year"
+4. **Value Proposition**: "That's about $X monthly to protect your assets and future earnings"
+5. **State Context**: "In [state], this is especially important because..."
+
+## Tiered Recommendations:
+- **Good**: Meets state minimums plus basic protection
+- **Better**: Provides solid protection for typical scenarios  
+- **Best**: Comprehensive protection for higher-asset clients
+
+## Product Cross-Selling Guidelines:
+Naturally introduce relevant products based on client mentions:
+- Home ownership → Homeowners insurance and umbrella policy
+- Renting → Renters insurance (often required by landlords)
+- Business ownership → Commercial coverage
+- Teen drivers → Higher liability limits + umbrella policy
+- Recreational vehicles → Specialty coverage (motorcycle, boat, RV)
+- Valuable items → Scheduled personal property
+
+## Compliance Requirements:
+Always include when providing quotes or recommendations:
+- "Coverage requirements and options vary by state"
+- "Quotes are estimates subject to underwriting and final approval"
+- "Actual coverage details governed by policy terms and conditions"
+- "Recommend consulting with a licensed agent in your state before making changes"
+
+Remember: Your goal is protecting their financial future through appropriate insurance coverage while building trust through expert guidance tailored to their specific state and situation.
+"""
 
 # ------------------ Intent Detection ------------------
 def detect_intent(user_message):
@@ -119,19 +252,13 @@ def detect_intent(user_message):
             return intent
     return "general"
 
-
 def clean_spacing(text):
-    # Remove multiple consecutive blank lines
     text = re.sub(r'\n\s*\n+', '\n', text)
-    # Remove stray carriage returns
     text = text.replace('\r', '')
     return text.strip()
 
-
-# ------------------ Function: Extract Data from Dec Page ------------------
-
+# ------------------ Data Extraction Functions ------------------
 def pinned_download_button(json_data, filename="dec_page_extracted.json"):
-    # render the widget first so the CSS (below) can override it
     st.download_button(
         "⬇️ Download JSON",
         data=json_data,
@@ -142,7 +269,6 @@ def pinned_download_button(json_data, filename="dec_page_extracted.json"):
 
     st.markdown("""
     <style>
-    /* Pin the specific download widget (by Streamlit test id) */
     div[data-testid="stDownloadButton"] {
         position: fixed !important;
         top: 70px !important;
@@ -150,10 +276,9 @@ def pinned_download_button(json_data, filename="dec_page_extracted.json"):
         z-index: 10000 !important;
         width: auto !important;
     }
-    /* Style the actual button inside */
     div[data-testid="stDownloadButton"] > button {
-        background-color: #F04E30 !important;   /* Polly orange */
-        color: #ffffff !important;               /* white text */
+        background-color: #F04E30 !important;
+        color: #ffffff !important;
         border: none !important;
         border-radius: 10px !important;
         padding: 10px 16px !important;
@@ -163,20 +288,17 @@ def pinned_download_button(json_data, filename="dec_page_extracted.json"):
         box-shadow: 0 4px 12px rgba(0,0,0,.15) !important;
         transition: all .2s ease-in-out !important;
     }
-    /* Make sure inner spans/icons are white too */
     div[data-testid="stDownloadButton"] > button * {
         color: #ffffff !important;
     }
-    /* Hover */
     div[data-testid="stDownloadButton"] > button:hover {
-        background-color: #ff6a4d !important;    /* lighter orange */
+        background-color: #ff6a4d !important;
         transform: translateY(-2px);
         box-shadow: 0 6px 16px rgba(0,0,0,.2) !important;
     }
     </style>
     """, unsafe_allow_html=True)
-
-
+    
 def extract_dec_page_data(extracted_text):
     """Extract structured data from the OCR extracted text"""
     data = {
@@ -186,7 +308,7 @@ def extract_dec_page_data(extracted_text):
         "drivers": []
     }
 
-    # ---------------- Policy Information ----------------
+    # Policy Information
     policy_number = re.search(r"Policy #:\s*(\S+)", extracted_text)
     policy_term = re.search(r"Term:\s*([\d/.-]+)\s*-\s*([\d/.-]+)", extracted_text)
     premium = re.search(r"Full Term Premium:\s*\$([\d,]+\.\d{2})", extracted_text)
@@ -199,33 +321,24 @@ def extract_dec_page_data(extracted_text):
     if premium:
         data["policy_info"]["full_term_premium"] = premium.group(1)
 
-    # ---------------- Named Insured ----------------
+    # Named Insured
     insured_name = re.search(r"Name:\s*(.*)", extracted_text)
     email = re.search(r"Email:\s*(\S+@\S+)", extracted_text)
-    address = re.search(r"Address:\s*(\d+.*?MA\s*\d+)", extracted_text)
+    address = re.search(r"Address:\s*(\d+.*?[A-Z]{2}\s*\d+)", extracted_text)
 
     data["insured"]["name"] = insured_name.group(1).strip() if insured_name else ""
     data["insured"]["email"] = email.group(1).strip() if email else ""
     data["insured"]["address"] = address.group(1).strip() if address else ""
 
-    # ---------------- Vehicles & Coverages ----------------
+    # Vehicles & Coverages
     vehicle_blocks = re.findall(r"Veh #\d+ Company Veh #\d+: ([\s\S]*?)(?=Veh #\d+|Drivers|$)", extracted_text)
     for vb in vehicle_blocks:
         year_make_model = re.search(r"(\d{4}),\s*([A-Z]+),\s*([A-Za-z0-9\s/]+)", vb)
         vin = re.search(r"([A-HJ-NPR-Z0-9]{17})", vb)
         vehicle_premium = re.search(r"Vehicle Premium:\s*\$([\d,]+\.\d{2})", vb)
-
-        # Bodily Injury
         bi_match = re.search(r"Optional bodily injury\s+(\d{1,3},?\d*)\s+(\d{1,3},?\d*)", vb)
-        bodily_injury = f"{bi_match.group(1)}/{bi_match.group(2)}" if bi_match else ""
-
-        # Collision
         collision_match = re.search(r"Collision\s+(\d+)", vb)
-        collision_deductible = collision_match.group(1) if collision_match else ""
-
-        # Comprehensive
         comp_match = re.search(r"Comprehensive\s+(\d+)", vb)
-        comprehensive_deductible = comp_match.group(1) if comp_match else ""
 
         data["vehicles"].append({
             "year": year_make_model.group(1) if year_make_model else "",
@@ -233,12 +346,12 @@ def extract_dec_page_data(extracted_text):
             "model": year_make_model.group(3).strip() if year_make_model else "",
             "vin": vin.group(1) if vin else "",
             "vehicle_premium": vehicle_premium.group(1) if vehicle_premium else "",
-            "bodily_injury": bodily_injury,
-            "collision_deductible": collision_deductible,
-            "comprehensive_deductible": comprehensive_deductible
+            "bodily_injury": f"{bi_match.group(1)}/{bi_match.group(2)}" if bi_match else "",
+            "collision_deductible": collision_match.group(1) if collision_match else "",
+            "comprehensive_deductible": comp_match.group(1) if comp_match else ""
         })
 
-    # ---------------- Drivers ----------------
+    # Drivers
     driver_blocks = re.findall(r"Driver #\s*(\d+)\s*([A-Z\s]+)\s(\d{2}/\d{2}/\d{4})", extracted_text)
     for db in driver_blocks:
         data["drivers"].append({
@@ -249,14 +362,10 @@ def extract_dec_page_data(extracted_text):
 
     return data
 
-
 def update_json_values(current_json, user_message):
-    """
-    Dynamically updates extracted JSON values based on user or AI suggestions.
-    Example: "Increase BI limits to 100/300" will update all BI limits.
-    """
+    """Dynamically updates extracted JSON values based on user suggestions"""
     updated_json = json.loads(current_json)
-
+    
     # Look for BI limit updates
     bi_match = re.search(r"(increase|raise)\s+bi.*?(\d{2,3}/\d{2,3})", user_message, re.I)
     if bi_match:
@@ -264,7 +373,7 @@ def update_json_values(current_json, user_message):
         for vehicle in updated_json.get("vehicles", []):
             vehicle["bodily_injury"] = new_limit
 
-    # Example: update deductible
+    # Update deductible
     ded_match = re.search(r"(deductible)\s+to\s+(\d+)", user_message, re.I)
     if ded_match:
         new_ded = ded_match.group(2)
@@ -273,10 +382,78 @@ def update_json_values(current_json, user_message):
 
     return json.dumps(updated_json, indent=4)
 
+# ------------------ Helper Functions ------------------
+def generate_fake_rates(base_premium):
+    """Generate fake rates around the extracted premium ±10%."""
+    base = float(base_premium.replace(",", "")) if base_premium else 1200.00
+    carriers = ["Travelers", "Geico", "Progressive", "Safeco", "Nationwide"]
+    rates = {}
+    for carrier in carriers:
+        variation = random.uniform(-0.1, 0.1)
+        rates[carrier] = round(base * (1 + variation), 2)
+    return rates
 
-# Load Massachusetts-specific agent resource data
-with open("data/Massachusetts_Agent_Resource_Updated.txt", "r", encoding="utf-8") as file:
-    mass_reference = file.read()
+def get_intent_specific_guidance(intent):
+    """Add intent-specific guidance to the system prompt"""
+    guidance = {
+        "umbrella": "Focus on asset protection scenarios. Explain lawsuit risks and how umbrella coverage protects net worth.",
+        "liability": "Emphasize state minimum vs. recommended limits. Use accident scenarios with expensive vehicles.",
+        "deductible": "Explain the relationship between deductible and premium. Show annual savings vs. out-of-pocket risk.",
+        "coverage_comparison": "Create side-by-side comparisons with Good/Better/Best options."
+    }
+    return guidance.get(intent, "")
+
+# ------------------ Auto-generate Summary Function ------------------
+def generate_auto_summary(extracted_text, extracted_data):
+    """Generate state-aware summary when dec page is uploaded."""
+    detected_state = detect_client_location(extracted_text, [])
+    if detected_state:
+        st.session_state.client_state = detected_state
+        state_context = get_state_specific_context(detected_state)
+        state_info = f"""
+        State-Specific Context for {detected_state}:
+        - Minimums: {state_context['minimums']}
+        - Recommendations: {state_context['recommendations']}
+        - Special Notes: {state_context['special_notes']}
+        - Regional Risks: {state_context['regional_risks']}
+        """
+    else:
+        state_info = "\n\nNote: State not detected from document."
+    
+    try:
+        messages = [
+            {
+                "role": "system",
+                "content": f"""
+                You are an insurance agent reviewing a client's declaration page. Provide a friendly but professional analysis that includes:
+                1. **Coverage Highlights** (2-3 key strengths)
+                2. **Immediate Concerns** (1-2 critical gaps or low limits)  
+                3. **Quick Wins** (1-2 easy improvements with cost estimates)
+
+                Keep it conversational and end with one specific question about their biggest concern or priority.
+                Use <h4> headings and <ul><li> bullets. Focus on asset protection and real-world scenarios.
+                {state_info}
+                """
+            },
+            {
+                "role": "user",
+                "content": f"Here's my insurance declaration page:\n\n{extracted_text}"
+            }
+        ]
+        
+        response = client.chat.completions.create(
+            model="gpt-5-chat-latest",
+            messages=messages,
+            max_tokens=15000,
+            timeout=30
+        )
+        
+        if response.choices and response.choices[0].message:
+            return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"I've received your declaration page and I'm analyzing your coverage. Error: {str(e)}"
+    
+    return "I've received your declaration page and I'm analyzing your coverage patterns."
 
 # ------------------ Page Configuration ------------------
 st.set_page_config(page_title="Polly Coverage Agent", layout="centered")
@@ -284,7 +461,6 @@ st.set_page_config(page_title="Polly Coverage Agent", layout="centered")
 # ------------------ CSS Styling ------------------
 st.markdown("""
 <style>
-/* Style the file uploader */
 section[data-testid="stFileUploader"] {
     background-color: #fff !important;
     border: 2px dashed #F04E30 !important;
@@ -293,7 +469,6 @@ section[data-testid="stFileUploader"] {
     color: #1F2D58 !important;
 }
 
-/* Style the Browse button itself */
 section[data-testid="stFileUploader"] button {
     background-color: #F04E30 !important;
     color: #ffffff !important;
@@ -304,67 +479,25 @@ section[data-testid="stFileUploader"] button {
     transition: all 0.2s ease-in-out !important;
 }
 
-/* Force white text on all button text elements */
 section[data-testid="stFileUploader"] button * {
     color: #ffffff !important;
 }
 
-/* Target the button text specifically */
-section[data-testid="stFileUploader"] button p {
-    color: #ffffff !important;
-}
-
-/* Ensure the button text span is white */
-section[data-testid="stFileUploader"] button span {
-    color: #ffffff !important;
-}
-
-/* Target button with kind attribute */
-button[kind="secondary"] {
-    color: #ffffff !important;
-}
-
-/* Hover effect */
 section[data-testid="stFileUploader"] button:hover {
     background-color: #ff6a4d !important;
 }
 
-/* Hover state text also white */
-section[data-testid="stFileUploader"] button:hover * {
-    color: #ffffff !important;
-}
-
-/* Additional targeting for the upload button text */
-.stUploadButton button {
-    color: #ffffff !important;
-}
-
-.stUploadButton button * {
-    color: #ffffff !important;
-}
-
-/* Target the specific browse button by data-testid if it exists */
-button[data-testid="stUploadButton"] {
-    color: #ffffff !important;
-}
-
-button[data-testid="stUploadButton"] * {
-    color: #ffffff !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<style>
 body, .stApp {
     background-color: #ffffff;
     color: #1F2D58;
     font-family: 'Segoe UI', sans-serif;
 }
+
 h1, h2, h3 {
     color: #1F2D58;
     text-align: center;
 }
+
 .chat-message {
     background-color: #f1f4ff;
     color: #000000;
@@ -373,30 +506,43 @@ h1, h2, h3 {
     margin-bottom: 1.2rem;
     box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
-section[data-testid="stFileUploader"] {
-    background-color: #eef1f9;
-    border: 2px dashed #A5B4FC;
-    border-radius: 12px;
-    padding: 2rem;
-    text-align: center;
-    margin-top: 20px;
-}
-button[kind="primary"] {
-    background-color: #F04E30;
-    color: white;
-    border-radius: 8px;
-    padding: 0.6rem 1.2rem;
-    font-weight: bold;
-    border: none;
-}
-button[kind="primary"]:hover {
-    background-color: #d33e23;
-}
-.stTextInput>div>div>input {
-    border-radius: 8px;
-    padding: 0.5rem;
+
+.rate-box {
+    position: fixed;
+    top: 100px;
+    left: 15px;
+    width: 220px;
+    background-color: #f8f9ff;
+    border: 2px solid #1F2D58;
+    border-radius: 10px;
+    padding: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    font-family: 'Segoe UI', sans-serif;
+    z-index: 999;
 }
 
+.rate-box h4 {
+    margin: 0 0 10px 0;
+    font-size: 1rem;
+    color: #1F2D58;
+    text-align: center;
+}
+
+.rate-box table {
+    width: 100%;
+    font-size: 0.9rem;
+    border-collapse: collapse;
+}
+
+.rate-box td {
+    padding: 4px 0;
+    border-bottom: 1px solid #ddd;
+}
+
+.rate-box td.carrier {
+    font-weight: 600;
+    color: #1F2D58;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -416,23 +562,8 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-
-# ------------------ Markdown Cleaner ------------------
-def clean_markdown(text):
-    # Add basic spacing and fix run-on content
-    text = re.sub(r'(\d+)([a-zA-Z])', r'\1 \2', text)
-    text = re.sub(r'([a-zA-Z])(\d+)', r'\1 \2', text)
-    text = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
-    text = re.sub(r'\n+', '\n', text)  # collapse excessive newlines
-    text = text.strip()
-    return text
-
-
 # ------------------ OpenAI Setup ------------------
-client = OpenAI(
-    api_key=st.secrets["OPENAI_API_KEY"]
-    # organization parameter is optional - only include if you have one in secrets
-)
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ------------------ Session State ------------------
 if "chat_history" not in st.session_state:
@@ -441,77 +572,22 @@ if "chat_history" not in st.session_state:
 # ------------------ File Upload Zone ------------------
 uploaded_file = st.file_uploader(" ", type=["pdf"])
 
-
-# ------------------ Generate Fake Carrier Rates Function ------------------
-def generate_fake_rates(base_premium):
-    """Generate fake rates around the extracted premium ±10%."""
-    base = float(base_premium.replace(",", "")) if base_premium else 1200.00
-    carriers = ["Travelers", "Geico", "Progressive", "Safeco", "Nationwide"]
-    rates = {}
-    for carrier in carriers:
-        variation = random.uniform(-0.1, 0.1)  # ±10%
-        rates[carrier] = round(base * (1 + variation), 2)
-    return rates
-
-
-# ------------------ Auto-generate Summary Function ------------------
-def generate_auto_summary(extracted_text, extracted_data):
-    """Automatically generate a summary and recommendations when dec page is uploaded."""
-    try:
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    "You are a friendly, conversational insurance agent. When reviewing a client's declaration page, "
-                    "provide a brief, easy-to-understand summary of their current coverage and then immediately suggest "
-                    "2-3 specific coverage improvements. Keep it conversational and helpful, not formal. "
-                    "Format your response with clear sections using <h4> tags and bullet points with <ul><li> tags. "
-                    "Always end with one simple, specific question to engage the client."
-                )
-            },
-            {
-                "role": "user",
-                "content": f"Here's my insurance declaration page. Please give me a brief summary of what I have and suggest some coverage improvements:\n\n{extracted_text}"
-            }
-        ]
-
-        response = client.chat.completions.create(
-            model="gpt-5-chat-latest",
-            messages=messages,
-            max_tokens=1000,
-            timeout=30
-        )
-
-        if response.choices and response.choices[0].message:
-            return response.choices[0].message.content.strip()
-    except Exception as e:
-        return f"I've received your declaration page. Let me review it and provide recommendations. Error: {str(e)}"
-
-    return "I've received your declaration page. Let me review it and provide recommendations."
-
-
 # ------------------ Extract Data with Google OCR ------------------
 if uploaded_file and "extracted_text" not in st.session_state:
     with st.spinner("Extracting text using Google OCR..."):
-        # Use Google OCR for text extraction
         extracted_text = extract_text_with_google_ocr(uploaded_file)
         st.session_state.extracted_text = extracted_text
-
-        # Extract structured data from the OCR text
         extracted_data = extract_dec_page_data(extracted_text)
         st.session_state.extracted_json = json.dumps(extracted_data, indent=4)
         st.session_state.extracted_data = extracted_data
 
-    # ✅ Add delay before showing rates
     with st.spinner("Analyzing your policy and fetching comparison rates..."):
         time.sleep(2)
-
-    # ✅ AUTO-GENERATE SUMMARY AND RECOMMENDATIONS
+    
     with st.spinner("Reviewing your coverage and preparing recommendations..."):
         auto_summary = generate_auto_summary(extracted_text, extracted_data)
         st.session_state.chat_history.append(("assistant", auto_summary))
         st.session_state.dec_summary = auto_summary
-        st.session_state.summary_generated = True
 
 # ------------------ Always Show Rate Box After Upload ------------------
 if "extracted_data" in st.session_state:
@@ -532,52 +608,18 @@ if "extracted_data" in st.session_state:
         unsafe_allow_html=True
     )
 
-# ------------------ Display Left-Side Rate Box CSS ------------------
-st.markdown(
-    """
-    <style>
-    .rate-box {
-        position: fixed;
-        top: 100px;
-        left: 15px;
-        width: 220px;
-        background-color: #f8f9ff;
-        border: 2px solid #1F2D58;
-        border-radius: 10px;
-        padding: 12px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        font-family: 'Segoe UI', sans-serif;
-        z-index: 999;
-    }
-    .rate-box h4 {
-        margin: 0 0 10px 0;
-        font-size: 1rem;
-        color: #1F2D58;
-        text-align: center;
-    }
-    .rate-box table {
-        width: 100%;
-        font-size: 0.9rem;
-        border-collapse: collapse;
-    }
-    .rate-box td {
-        padding: 4px 0;
-        border-bottom: 1px solid #ddd;
-    }
-    .rate-box td.carrier {
-        font-weight: 600;
-        color: #1F2D58;
-    }
-    </style>
-    """, unsafe_allow_html=True
-)
-
 # ------------------ Show upload status ------------------
 if uploaded_file:
-    st.markdown(
-        "<div style='text-align:center; color:#1F2D58; font-size:0.95rem; margin-top:5px;'>✅ Dec Page uploaded and processed with Google OCR</div>",
-        unsafe_allow_html=True
-    )
+    if "client_state" in st.session_state:
+        st.markdown(
+            f"<div style='text-align:center; color:#1F2D58; font-size:0.95rem; margin-top:5px;'>✅ Dec Page uploaded and processed with Google OCR | 📍 Detected State: {st.session_state.client_state}</div>",
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            "<div style='text-align:center; color:#1F2D58; font-size:0.95rem; margin-top:5px;'>✅ Dec Page uploaded and processed with Google OCR</div>",
+            unsafe_allow_html=True
+        )
 elif "extracted_text" not in st.session_state:
     st.markdown(
         "<div style='text-align:center; color:#94A3B8; font-style:italic; margin-top:10px;'>No Dec Page uploaded</div>",
@@ -598,7 +640,7 @@ for role, msg in st.session_state.chat_history:
     icon = "👤" if role == "user" else "🤖"
     bubble_color = "#E0E8FF" if role == "user" else "#f0f0f0"
     msg_clean = clean_spacing(msg)
-
+    
     # Allow HTML rendering for assistant messages
     if role == "assistant":
         st.markdown(
@@ -637,7 +679,13 @@ if "extracted_json" in st.session_state:
 
 if user_prompt:
     st.session_state.chat_history.append(("user", user_prompt))
-
+    
+    # Detect state from conversation if not already known
+    if "client_state" not in st.session_state:
+        detected_state = detect_client_location("", st.session_state.chat_history)
+        if detected_state:
+            st.session_state.client_state = detected_state
+    
     # Detect intent (if not a vague response)
     detected_intent = detect_intent(user_prompt)
     if user_prompt.lower() not in ["sure", "ok", "yes", "yep"]:
@@ -657,7 +705,7 @@ if user_prompt:
         else:
             user_prompt = "Please suggest additional coverage improvements with estimated premium changes."
 
-    # ✅ Dynamically update JSON if prompt suggests changes
+    # Dynamically update JSON if prompt suggests changes
     if "extracted_json" in st.session_state:
         st.session_state.extracted_json = update_json_values(st.session_state.extracted_json, user_prompt)
 
@@ -666,57 +714,65 @@ if user_prompt:
             extracted_text = st.session_state.get("extracted_text", "")
             dec_summary = st.session_state.get("dec_summary", "")
 
-            # ✅ Build messages starting with system prompt
+            # Get state-specific context
+            if "client_state" in st.session_state:
+                state_context = get_state_specific_context(st.session_state.client_state)
+                state_prompt_addition = f"""
+                
+                ## Client Location: {st.session_state.client_state}
+                **State Minimums**: {state_context['minimums']}
+                **Recommendations**: {state_context['recommendations']}
+                **Special Notes**: {state_context['special_notes']}
+                **Regional Risks**: {state_context['regional_risks']}
+                **Coverage Priorities**: {state_context['coverage_priorities']}
+                
+                Tailor all recommendations to {st.session_state.client_state} requirements and risk factors.
+                """
+            else:
+                state_prompt_addition = """
+                
+                ## Client Location: Unknown
+                Ask about their state early in the conversation to provide accurate recommendations.
+                Use general U.S. insurance principles until location is confirmed.
+                Mention that requirements vary significantly by state.
+                """
+
+            # Build messages starting with enhanced system prompt
             messages = [
                 {
                     "role": "system",
-                    "content": (
-                        "You are a friendly, conversational insurance agent chatting naturally with clients about their coverage needs. "
-                        "Your primary goals are helping clients clearly understand their current coverage and gently guiding them toward improved protection or additional relevant insurance products. "
-                        "Your primary rules are:\n"
-                        "1. Ask **only one question at a time** – never ask multiple questions in one message.\n"
-                        "2. Keep responses short, natural, and conversational, like texting a client.\n"
-                        "3. Use small chunks of information – no long paragraphs.\n"
-                        "4. Use <h4> for headings and <ul><li> for bullet points when listing info.\n"
-                        "5. Never list more than one follow-up question in a single response. Wait for the client to reply first.\n\n"
-                        "Always watch for gaps or extra coverage needs based on what clients mention (new car, home, family changes, travel, business needs, etc.). "
-                        "Whenever relevant, proactively and naturally suggest higher coverage limits, umbrella policies, or additional lines like home, renters, condo, motorcycle, boat, RV, small business insurance, dealership products (warranties), and roadside assistance (like AAA). "
-                        "Whenever the user uploads a document, confirm it is an insurance declaration page and use it to present comparison quotes. You may make up the premium amounts.\n"
-                        "The document has been processed using advanced Google OCR for maximum accuracy.\n"
-                        "Never be pushy; your tone should always feel helpful and conversational.\n\n"
-
-                        "Communication Guidelines:\n"
-                        "Keep messages short, friendly, and conversational, similar to text messaging—not formal reports.\n"
-                        "Provide information in small, easy-to-read chunks.\n"
-                        "Always ask only one follow-up question at a time. Make sure your message flows like a natural, friendly conversation. Avoid listing or rapid-firing multiple questions in one turn—keep it relaxed and focused.\n"
-                        "Present insurance quotes or coverage options in simple, side-by-side comparison tables automatically. Do NOT ask if the client wants a table—always include one by default, along with a brief summary explaining key differences if helpful.\n"
-                        "Offer detailed explanations only when specifically requested by the client.\n"
-                        "Use HTML formatting for readability if supported: <h4> headings, <ul><li> bullets for quick points.\n\n"
-
-                        "Your main role is to naturally uncover clients' needs, identify coverage gaps, and recommend appropriate insurance solutions in a clear, engaging, conversational manner."
-                    )
+                    "content": UNIVERSAL_SYSTEM_PROMPT + state_prompt_addition
                 }
             ]
 
-            # ✅ Include previous conversation context if Dec summary exists
+            # Add intent-specific guidance if available
+            if "intent" in st.session_state:
+                intent_guidance = get_intent_specific_guidance(st.session_state.intent)
+                if intent_guidance:
+                    messages.append({
+                        "role": "system", 
+                        "content": f"Additional context for this conversation: {intent_guidance}"
+                    })
+
+            # Include previous conversation context if Dec summary exists
             if dec_summary:
                 messages.append({
                     "role": "system",
                     "content": f"Previous Dec Page summary for context (extracted via Google OCR):\n{dec_summary}"
                 })
 
-            # ✅ Append chat history (excluding the current user message)
+            # Append chat history (excluding the current user message)
             for role, msg in st.session_state.chat_history[:-1]:  # Exclude last user message we just added
                 messages.append({"role": role, "content": msg})
 
-            # ✅ Add the current user prompt
+            # Add the current user prompt
             messages.append({"role": "user", "content": user_prompt})
 
             # Run ChatGPT
             response = client.chat.completions.create(
                 model="gpt-5-chat-latest",
                 messages=messages,
-                max_tokens=1000,
+                max_tokens=15000,
                 timeout=30
             )
 
@@ -726,7 +782,15 @@ if user_prompt:
                 st.rerun()
             else:
                 st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
+                st.rerun()
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
             st.rerun()
+
+# ------------------ Final Check for State Detection ------------------
+if "client_state" not in st.session_state and len(st.session_state.chat_history) > 4:
+    # After several exchanges without knowing state, the system will naturally ask
+    # This is handled in the prompt logic above
+    pass
+
 
