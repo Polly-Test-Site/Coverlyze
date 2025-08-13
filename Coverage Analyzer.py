@@ -72,8 +72,8 @@ def vision_pdf_ocr(pdf_bytes: bytes, gcs_input_bucket: str, gcs_output_bucket: s
         raise Exception("Failed to initialize Google Cloud clients")
 
     # 1) Upload PDF to GCS
-    input_bucket = storage_client.bucket(gcs_input_bucket)
-    output_bucket = storage_client.bucket(gcs_output_bucket)
+    input_bucket = storage_client.bucket(coverlyze-input)
+    output_bucket = storage_client.bucket(coverlyze-output)
 
     input_blob_name = f"input/{uuid.uuid4()}.pdf"
     input_blob = input_bucket.blob(input_blob_name)
@@ -798,3 +798,4 @@ if user_prompt:
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
             st.rerun()
+
