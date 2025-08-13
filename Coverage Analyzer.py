@@ -478,7 +478,7 @@ def generate_auto_summary(extracted_text, extracted_data):
         response = client.chat.completions.create(
             model="gpt-5-chat-latest",
             messages=messages,
-            max_tokens=1000,
+            max_tokens=15000,
             timeout=30
         )
 
@@ -716,7 +716,7 @@ if user_prompt:
             response = client.chat.completions.create(
                 model="gpt-5-chat-latest",
                 messages=messages,
-                max_tokens=1000,
+                max_tokens=15000,
                 timeout=30
             )
 
@@ -729,4 +729,5 @@ if user_prompt:
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
             st.rerun()
+
 
