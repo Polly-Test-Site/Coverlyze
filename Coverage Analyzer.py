@@ -644,7 +644,7 @@ st.markdown(
 # ------------------ Show upload status ------------------
 if uploaded_file:
     st.markdown(
-        "<div style='text-align:center; color:#1F2D58; font-size:0.95rem; margin-top:5px;'>✅ Dec Page uploaded and processed with enhanced OCR accuracy</div>",
+        "<div style='text-align:center; color:#1F2D58; font-size:0.95rem; margin-top:5px;'>✅ Dec Page uploaded and processed with Google OCR</div>",
         unsafe_allow_html=True
     )
 elif "extracted_text" not in st.session_state:
@@ -798,4 +798,5 @@ if user_prompt:
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
             st.rerun()
+
 
