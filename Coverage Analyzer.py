@@ -476,10 +476,14 @@ def generate_auto_summary(extracted_text, extracted_data):
         ]
 
         response = client.chat.completions.create(
-            model="gpt-5-chat-latest",
+            model="gpt-4o",  # Fixed: Use actual available model (gpt-5 doesn't exist)
             messages=messages,
-            max_tokens=1000,
-            timeout=30
+            timeout=60,  # Increased timeout to reduce timeout errors
+            max_tokens=2500,  # Added token limit for response length
+            temperature=0.7,  # Added temperature for consistent responses
+            top_p=1.0,  # Added top_p for token selection diversity
+            frequency_penalty=0.0,  # Reduce repetition
+            presence_penalty=0.0  # Encourage topic focus
         )
 
         if response.choices and response.choices[0].message:
@@ -713,12 +717,16 @@ if user_prompt:
             messages.append({"role": "user", "content": user_prompt})
 
             # Run ChatGPT
-            response = client.chat.completions.create(
-                model="gpt-5",
-                messages=messages,
-                max_tokens=1000,
-                timeout=30
-            )
+        response = client.chat.completions.create(
+            model="gpt-4o",  # Fixed: Use actual available model (gpt-5 doesn't exist)
+            messages=messages,
+            timeout=60,  # Increased timeout to reduce timeout errors
+            max_tokens=2500,  # Added token limit for response length
+            temperature=0.7,  # Added temperature for consistent responses
+            top_p=1.0,  # Added top_p for token selection diversity
+            frequency_penalty=0.0,  # Reduce repetition
+            presence_penalty=0.0  # Encourage topic focus
+        )
 
             if response.choices and response.choices[0].message:
                 reply = response.choices[0].message.content.strip()
@@ -729,3 +737,4 @@ if user_prompt:
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
             st.rerun()
+
