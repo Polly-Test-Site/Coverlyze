@@ -694,78 +694,78 @@ if user_prompt:
     if "extracted_json" in st.session_state:
         st.session_state.extracted_json = update_json_values(st.session_state.extracted_json, user_prompt)
 
-    with st.spinner("Thinking..."):
-        try:
-            extracted_text = st.session_state.get("extracted_text", "")
-            dec_summary = st.session_state.get("dec_summary", "")
+with st.spinner("Thinking..."):
+    try:
+        extracted_text = st.session_state.get("extracted_text", "")
+        dec_summary = st.session_state.get("dec_summary", "")
 
-            # ✅ Build messages starting with system prompt
-            messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a friendly, conversational insurance agent chatting naturally with clients about their coverage needs. "
-                        "Your primary goals are helping clients clearly understand their current coverage and gently guiding them toward improved protection or additional relevant insurance products. "
-                        "Your primary rules are:\n"
-                        "1. Ask **only one question at a time** – never ask multiple questions in one message.\n"
-                        "2. Keep responses short, natural, and conversational, like texting a client.\n"
-                        "3. Use small chunks of information – no long paragraphs.\n"
-                        "4. Use <h4> for headings and <ul><li> for bullet points when listing info.\n"
-                        "5. Never list more than one follow-up question in a single response. Wait for the client to reply first.\n\n"
-                        "Always watch for gaps or extra coverage needs based on what clients mention (new car, home, family changes, travel, business needs, etc.). "
-                        "Whenever relevant, proactively and naturally suggest higher coverage limits, umbrella policies, or additional lines like home, renters, condo, motorcycle, boat, RV, small business insurance, dealership products (warranties), and roadside assistance (like AAA). "
-                        "Whenever the user uploads a document, confirm it is an insurance declaration page and use it to present comparison quotes. You may make up the premium amounts.\n"
-                        "The document has been processed using advanced Google OCR for maximum accuracy.\n"
-                        "Never be pushy; your tone should always feel helpful and conversational.\n\n"
+        # ✅ Build messages starting with system prompt
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a friendly, conversational insurance agent chatting naturally with clients about their coverage needs. "
+                    "Your primary goals are helping clients clearly understand their current coverage and gently guiding them toward improved protection or additional relevant insurance products. "
+                    "Your primary rules are:\n"
+                    "1. Ask **only one question at a time** – never ask multiple questions in one message.\n"
+                    "2. Keep responses short, natural, and conversational, like texting a client.\n"
+                    "3. Use small chunks of information – no long paragraphs.\n"
+                    "4. Use <h4> for headings and <ul><li> for bullet points when listing info.\n"
+                    "5. Never list more than one follow-up question in a single response. Wait for the client to reply first.\n\n"
+                    "Always watch for gaps or extra coverage needs based on what clients mention (new car, home, family changes, travel, business needs, etc.). "
+                    "Whenever relevant, proactively and naturally suggest higher coverage limits, umbrella policies, or additional lines like home, renters, condo, motorcycle, boat, RV, small business insurance, dealership products (warranties), and roadside assistance (like AAA). "
+                    "Whenever the user uploads a document, confirm it is an insurance declaration page and use it to present comparison quotes. You may make up the premium amounts.\n"
+                    "The document has been processed using advanced Google OCR for maximum accuracy.\n"
+                    "Never be pushy; your tone should always feel helpful and conversational.\n\n"
+                    "Communication Guidelines:\n"
+                    "Keep messages short, friendly, and conversational, similar to text messaging—not formal reports.\n"
+                    "Provide information in small, easy-to-read chunks.\n"
+                    "Always ask only one follow-up question at a time. Make sure your message flows like a natural, friendly conversation. Avoid listing or rapid-firing multiple questions in one turn—keep it relaxed and focused.\n"
+                    "Present insurance quotes or coverage options in simple, side-by-side comparison tables automatically. Do NOT ask if the client wants a table—always include one by default, along with a brief summary explaining key differences if helpful.\n"
+                    "Offer detailed explanations only when specifically requested by the client.\n"
+                    "Use HTML formatting for readability if supported: <h4> headings, <ul><li> bullets for quick points.\n\n"
+                    "Your main role is to naturally uncover clients' needs, identify coverage gaps, and recommend appropriate insurance solutions in a clear, engaging, conversational manner."
+                )
+            }
+        ]
 
-                        "Communication Guidelines:\n"
-                        "Keep messages short, friendly, and conversational, similar to text messaging—not formal reports.\n"
-                        "Provide information in small, easy-to-read chunks.\n"
-                        "Always ask only one follow-up question at a time. Make sure your message flows like a natural, friendly conversation. Avoid listing or rapid-firing multiple questions in one turn—keep it relaxed and focused.\n"
-                        "Present insurance quotes or coverage options in simple, side-by-side comparison tables automatically. Do NOT ask if the client wants a table—always include one by default, along with a brief summary explaining key differences if helpful.\n"
-                        "Offer detailed explanations only when specifically requested by the client.\n"
-                        "Use HTML formatting for readability if supported: <h4> headings, <ul><li> bullets for quick points.\n\n"
+        # ✅ Include previous conversation context if Dec summary exists
+        if dec_summary:
+            messages.append({
+                "role": "assistant",
+                "content": f"Previous Dec Page summary for context (extracted via Google OCR):\n{dec_summary}"
+            })
 
-                        "Your main role is to naturally uncover clients' needs, identify coverage gaps, and recommend appropriate insurance solutions in a clear, engaging, conversational manner."
-                    )
-                }
-            ]
+        # ✅ Append chat history (excluding the current user message)
+        for role, msg in st.session_state.chat_history[:-1]:
+            messages.append({"role": role, "content": msg})
 
-            # ✅ Include previous conversation context if Dec summary exists
-            if dec_summary:
-                messages.append({
-                    "role": "system",
-                    "content": f"Previous Dec Page summary for context (extracted via Google OCR):\n{dec_summary}"
-                })
+        # ✅ Add the current user prompt
+        messages.append({"role": "user", "content": user_prompt})
 
-            # ✅ Append chat history (excluding the current user message)
-            for role, msg in st.session_state.chat_history[:-1]:  # Exclude last user message we just added
-                messages.append({"role": role, "content": msg})
-
-            # ✅ Add the current user prompt
-            messages.append({"role": "user", "content": user_prompt})
-
-            # Run ChatGPT
+        # Run ChatGPT
         response = client.chat.completions.create(
-            model="gpt-4o",  # Fixed: Use actual available model (gpt-5 doesn't exist)
+            model="gpt-4o",
             messages=messages,
-            timeout=60,  # Increased timeout to reduce timeout errors
-            max_tokens=2500,  # Added token limit for response length
-            temperature=0.7,  # Added temperature for consistent responses
-            top_p=1.0,  # Added top_p for token selection diversity
-            frequency_penalty=0.0,  # Reduce repetition
-            presence_penalty=0.0  # Encourage topic focus
+            timeout=60,
+            max_tokens=2500,
+            temperature=0.7,
+            top_p=1.0,
+            frequency_penalty=0.0,
+            presence_penalty=0.0
         )
 
-            if response.choices and response.choices[0].message:
-                reply = response.choices[0].message.content.strip()
-                st.session_state.chat_history.append(("assistant", reply))
-                st.rerun()
-            else:
-                st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
-        except Exception as e:
-            st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+        if response.choices and response.choices[0].message:
+            reply = response.choices[0].message.content.strip()
+            st.session_state.chat_history.append(("assistant", reply))
             st.rerun()
+        else:
+            st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
+
+    except Exception as e:
+        st.session_state.chat_history.append(("assistant", f"Error: {e}"))
+        st.rerun()
+
 
 
 
