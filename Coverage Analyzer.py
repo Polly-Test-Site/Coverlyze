@@ -665,19 +665,22 @@ for role, msg in st.session_state.chat_history:
 
 # ------------------ Chat Input + Completion ------------------
 user_prompt = st.chat_input("Ask your insurance question...")
+
+# Show pinned download button (optional)
 if "extracted_json" in st.session_state:
     pinned_download_button(st.session_state.extracted_json)
 
+# If user typed something, record it and respond
 if user_prompt:
+    # Track user message
     st.session_state.chat_history.append(("user", user_prompt))
 
-    # Detect intent (if not a vague response)
+    # Detect/track intent (optional)
     detected_intent = detect_intent(user_prompt)
     if user_prompt.lower() not in ["sure", "ok", "yes", "yep"]:
         st.session_state.intent = detected_intent
-
-    # If response is vague, use last known intent to clarify the prompt
-    if user_prompt.lower() in ["sure", "ok", "yes", "yep"]:
+    else:
+        # Replace vague replies with a concrete prompt based on last known intent
         intent = st.session_state.get("intent", "general")
         if intent == "umbrella":
             user_prompt = "Please provide a realistic fake umbrella policy quote with premium amounts based on my current coverage."
@@ -689,19 +692,18 @@ if user_prompt:
             user_prompt = "Please create a table comparing my current coverage to at least two alternative quote options with estimated premiums."
         else:
             user_prompt = "Please suggest additional coverage improvements with estimated premium changes."
+        # Overwrite the just-added vague message with the clarified one
+        st.session_state.chat_history[-1] = ("user", user_prompt)
 
-    # ✅ Dynamically update JSON if prompt suggests changes
+    # Optionally update JSON based on the latest user message
     if "extracted_json" in st.session_state:
         st.session_state.extracted_json = update_json_values(st.session_state.extracted_json, user_prompt)
 
-with st.spinner("Thinking..."):
-    try:
-        extracted_text = st.session_state.get("extracted_text", "")
-        dec_summary = st.session_state.get("dec_summary", "")
-
-        # ✅ Build messages starting with system prompt
-        messages = [
-            {
+    # Build and send the request ONLY NOW (when there is a user message)
+    with st.spinner("Thinking..."):
+        try:
+            # System prompt
+            messages = [{
                 "role": "system",
                 "content": (
                     "You are a friendly, conversational insurance agent chatting naturally with clients about their coverage needs. "
@@ -726,45 +728,41 @@ with st.spinner("Thinking..."):
                     "Use HTML formatting for readability if supported: <h4> headings, <ul><li> bullets for quick points.\n\n"
                     "Your main role is to naturally uncover clients' needs, identify coverage gaps, and recommend appropriate insurance solutions in a clear, engaging, conversational manner."
                 )
-            }
-        ]
+            }]
 
-        # ✅ Include previous conversation context if Dec summary exists
-        if dec_summary:
-            messages.append({
-                "role": "assistant",
-                "content": f"Previous Dec Page summary for context (extracted via Google OCR):\n{dec_summary}"
-            })
+            # If you want prior auto summary to count as context, add it here
+            dec_summary = st.session_state.get("dec_summary", "")
+            if dec_summary:
+                messages.append({
+                    "role": "assistant",
+                    "content": f"Previous Dec Page summary for context (extracted via Google OCR):\n{dec_summary}"
+                })
 
-        # ✅ Append chat history (excluding the current user message)
-        for role, msg in st.session_state.chat_history[:-1]:
-            messages.append({"role": role, "content": msg})
+            # Transform the entire chat history into OpenAI messages
+            for role, msg in st.session_state.chat_history:
+                messages.append({"role": role, "content": msg})
 
-        # ✅ Add the current user prompt
-        messages.append({"role": "user", "content": user_prompt})
+            # Call the model
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                timeout=60,
+                max_tokens=2500,
+                temperature=0.7,
+                top_p=1.0,
+                frequency_penalty=0.0,
+                presence_penalty=0.0
+            )
 
-        # Run ChatGPT
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=messages,
-            timeout=60,
-            max_tokens=2500,
-            temperature=0.7,
-            top_p=1.0,
-            frequency_penalty=0.0,
-            presence_penalty=0.0
-        )
-
-        if response.choices and response.choices[0].message:
-            reply = response.choices[0].message.content.strip()
-            st.session_state.chat_history.append(("assistant", reply))
+            if response.choices and response.choices[0].message:
+                reply = response.choices[0].message.content.strip()
+                st.session_state.chat_history.append(("assistant", reply))
+                st.rerun()
+            else:
+                st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
+        except Exception as e:
+            st.session_state.chat_history.append(("assistant", f"Error: {e}"))
             st.rerun()
-        else:
-            st.session_state.chat_history.append(("assistant", "⚠️ No response received."))
-
-    except Exception as e:
-        st.session_state.chat_history.append(("assistant", f"Error: {e}"))
-        st.rerun()
 
 
 
