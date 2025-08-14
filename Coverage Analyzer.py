@@ -466,18 +466,14 @@ def generate_auto_summary(extracted_text, extracted_data):
             "\n"
             "When reviewing a client's declarations page, always follow this structure:\n"
             "\n"
-            "1. **How Insurance Works** – Start with a short, relatable explanation of how insurance works in everyday terms, "
-            "using simple examples or analogies.\n"
-            "\n"
-            "2. **Current Coverage Summary** – Explain each coverage they have, what it means, and how it protects them. "
+            "1. **Current Coverage Summary** – Explain each coverage they have, what it means, and how it protects them. "
             "Avoid jargon unless it’s clearly defined.\n"
             "\n"
-            "3. **Coverage Improvement Suggestions** – Recommend 2–3 specific, tailored improvements or additions they could benefit from:\n"
+            "2. **Coverage Improvement Suggestions** – Recommend 2–3 specific, tailored improvements or additions they could benefit from:\n"
             "   - Explain why it matters in their situation.\n"
             "   - Relate it to real-life scenarios.\n"
             "\n"
-            "4. **Highlight the Most Important Suggestion** – Clearly identify which of your 2–3 suggestions is the most relevant "
-            "or impactful for them, and explain why.\n"
+            "3. **Prioritize one recommendation** – Naturally emphasize the single most relevant or impactful suggestion from your list, weaving it into the conversation without announcing that you are prioritizing it."
             "\n"
             "**Tone & Style:**\n"
             "- Friendly, conversational, and reassuring — never overly formal.\n"
@@ -763,6 +759,7 @@ if user_prompt:
         except Exception as e:
             st.session_state.chat_history.append(("assistant", f"Error: {e}"))
             st.rerun()
+
 
 
 
